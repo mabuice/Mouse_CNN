@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
-from mcmodels.core import Mask, VoxelModelCache
+from mcmodels.core import VoxelModelCache
+from mouse_cnn.flatmap import FlatMap
 
 
 """
@@ -19,9 +20,9 @@ class VoxelModel():
         self.source_mask = cache.get_source_mask()
         self.source_keys = self.source_mask.get_key(structure_ids=None)
 
-        with open('voxel-connectivity-weights.pkl', 'rb') as file:
+        with open('data_files/voxel-connectivity-weights.pkl', 'rb') as file:
             self.weights = pickle.load(file)
-        with open('voxel-connectivity-nodes.pkl', 'rb') as file:
+        with open('data_files/voxel-connectivity-nodes.pkl', 'rb') as file:
             self.nodes = pickle.load(file)
 
         self.structure_tree = cache.get_structure_tree()
@@ -43,6 +44,18 @@ class VoxelModel():
             w = np.dot(self.weights[pre_indices,:], self.nodes[:,pi])
             weights_by_target_voxel.append(w)
         return weights_by_target_voxel
+
+    def get_positions(self, source_name='VISp2/3'):
+        pre_id = self.structure_tree.get_id_acronym_map()[source_name]
+        mask_indices = np.array(self.source_mask.mask.nonzero())
+
+        pre_positions = []
+        for i in range(len(self.source_keys)):
+            if self.structure_tree.structure_descends_from(self.source_keys[i], pre_id):
+                pre_positions.append(mask_indices[:, i])
+
+        return pre_positions
+
 
     @staticmethod
     def get_instance():
@@ -159,15 +172,19 @@ class Target():
     def get_kernel_width_mm(self, source_name):
         """
         :param source_name: source area/layer name
-        :return:
+        :return: sigma of Gaussian approximation of mean input kernel
         """
         sigmas = []
-        for target_voxel in self._get_voxels():
-            source_voxels = self._get_source_voxels(target_voxel, source_name)
-            flatmap = get_flatmap(source_voxels)
 
-            if not is_multimodal(flatmap):
-                sigmas.append(find_radius(flatmap))
+        weights = self.voxel_model.get_weights(source_name, self.target_name) # target voxel by source voxel
+        positions = self.voxel_model.get_positions(source_name) # source voxel by 3
+
+        flatmap = FlatMap.get_instance()
+        positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
+
+        for target_voxel in range(len(weights)):
+            if not is_multimodal(weights[target_voxel], positions_2d):
+                sigmas.append(find_radius(weights[target_voxel], positions_2d))
 
         return np.mean(sigmas)
 
@@ -180,37 +197,34 @@ class Target():
         return result
 
 
-def get_flatmap(souce_voxels):
-    #TODO: implement
-    return None
-
-def is_multimodal(flatmap):
+def is_multimodal(weights, positions_2d):
     """
-    :param flatmap: flatmap of source voxel weights
+    :param weights: connectivity weights for source voxels
+    :param positions_2d: flatmap positions of source voxels
     :return: True if weights have multiple dense regions, False if single dense region
     """
-    #TODO: implement
+    #TODO: implement - use watershed algorithm
     return False
 
-def find_radius(flatmap):
+def find_radius(weights, positions_2d):
     #TODO: deconvolve from model blur and flatmap blur
-    #TODO: implement
-    return .5
+    positions_2d = np.array(positions_2d)
+    total = sum(weights)
+    centroid_x = np.sum(weights * positions_2d[:,0]) / total
+    centroid_y = np.sum(weights * positions_2d[:,1]) / total
+    offset_x = positions_2d[:,0] - centroid_x
+    offset_y = positions_2d[:,1] - centroid_y
+    square_distance = offset_x**2 + offset_y**2
+    return (np.sum(weights * square_distance) / total)**.5
 
 
 if __name__ == '__main__':
     # vm = VoxelModel()
-    # print('got voxel model')
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
-    # print('got weights')
-
-    # t = Target('VISpm', '4')
-    # print('foo')
-    # t = Target('VISpm', '4')
-    # print('foo')
 
     t = Target('VISpm', '4')
     t.set_gamma()
+    print('VISp2/3->VISpm4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
     print(t)
 
 
