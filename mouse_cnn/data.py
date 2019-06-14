@@ -1,3 +1,4 @@
+import os
 import csv
 import numpy as np
 from scipy.optimize import curve_fit
@@ -13,6 +14,7 @@ class Data:
     def __init__(self):
         self.e18 = Ero2018()
         self.p11 = Perin11()
+        self.b19 = Billeh19()
 
     def get_areas(self):
         """
@@ -47,7 +49,8 @@ class Data:
         :return: estimate of number of excitatory neurons in given area/layer
         """
         #TODO: compare with other estimates
-        self.e18.get_n_excitatory(area, layer)
+        #TODO: also need estimates for VISrl, VISli, VISpor
+        return self.e18.get_n_excitatory(area, layer)
 
     def get_extrinsic_in_degree(self, area, layer):
         """
@@ -66,8 +69,9 @@ class Data:
         :return: fraction of excitatory neuron pairs with functional connection in this
             direction, at zero horizontal offset
         """
-        #TODO: replace with real estimate
-        return .1
+        hit_rate = self.b19.get_connection_probability(source_layer, target_layer)
+        fraction_of_peak = np.exp(-75**2 / 2 / self.get_hit_rate_width(source_layer, target_layer)**2)
+        return hit_rate / fraction_of_peak
 
     def get_hit_rate_width(self, source_layer, target_layer):
         """
@@ -81,14 +85,24 @@ class Data:
 
 class Ero2018:
     """
-    Data from supplementary material of [1]. We load names of regions and numbers of
-    excitatory neurons.
+    Data from supplementary material of:
+
+    Erö, C., Gewaltig, M. O., Keller, D., & Markram, H. (2019). A Cell Atlas for the Mouse Brain.
+    Frontiers in Neuroinformatics, 13, 7.
     """
 
     def __init__(self):
+        file_name = data_folder + '/Data_Sheet_1_A Cell Atlas for the Mouse Brain.CSV'
+
+        if not os.path.isfile(file_name):
+            raise Exception('Missing data file {}, available from {}'.format(
+                file_name,
+                'https://www.frontiersin.org/articles/10.3389/fninf.2018.00084/full#supplementary-material'
+            ))
+
         self.regions = []
         self.excitatory = []
-        with open(data_folder + '/Data_Sheet_1_A Cell Atlas for the Mouse Brain.CSV') as csvfile:
+        with open(file_name) as csvfile:
             r = csv.reader(csvfile)
             header_line = True
             for row in r:
@@ -155,3 +169,30 @@ class Perin11:
         cp = np.array(connection_probability_vs_distance)
         popt, pcov = curve_fit(gaussian, cp[:,0], cp[:,1], p0=(.2, 150))
         self.width_micrometers = popt[1]
+
+
+class Billeh19():
+    """
+    Data from literature review by Yazan Billeh.
+    TODO: further details and reference the paper once it's published.
+    """
+
+    def __init__(self):
+        self._layers = ['2/3', '4', '5', '6']
+        self.probabilities = [
+            [.160, .016, .083, 0],
+            [.14, .243, .104, .032],
+            [.021, .007, .116, .047],
+            [0, 0, .012, .026]
+        ]
+
+    def get_connection_probability(self, source, target):
+        assert source in self._layers
+        assert target in self._layers
+
+        source_index = self._layers.index(source)
+        target_index = self._layers.index(target)
+
+        return self.probabilities[source_index][target_index]
+
+
