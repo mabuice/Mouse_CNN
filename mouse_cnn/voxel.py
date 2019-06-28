@@ -265,7 +265,6 @@ def get_multimodal_depth_fraction(image):
     highest = np.max(image)
 
     step = .02
-    fraction = np.arange(0, 1, step)
     for f in np.arange(0, 1+step, step):
         maxima = h_maxima(image, f * (highest - lowest))
         s = np.sum(maxima)
@@ -342,74 +341,8 @@ def is_multimodal(weights, positions_2d):
     :param positions_2d: flatmap positions of source voxels
     :return: True if weights have multiple dense regions, False if single dense region
     """
-    prediction = fit_image(weights, positions_2d)
-
-    fig = plt.figure(figsize=(10,4))
-    plt.subplot(1,4,1)
-    flatmap_weights(positions_2d, weights)
-
-    positions_2d = np.array(positions_2d)
-    hull = ConvexHull(positions_2d)
-    v = np.concatenate((hull.vertices, [hull.vertices[0]]))
-
-    plt.plot(positions_2d[v,0], positions_2d[v,1])
-
-    # p = path.Path([(positions_2d[i,0], positions_2d[i,1]) for i in v])
-    # inside = p.contains_points(coords)
-    # outside = [not x for x in inside]
-    plt.title('Kernel')
-
-    plt.subplot(1,4,2)
-    plt.imshow(prediction)
-    plt.title('Smoothed')
-
-    lowest = np.min(prediction)
-    highest = np.max(prediction)
-    #
-    # prediction = np.reshape(prediction, n_steps**2)
-    # prediction[outside] = lowest
-    # prediction[prediction < lowest + 0.2*(highest-lowest)] = lowest
-    # prediction = np.reshape(prediction, (n_steps, n_steps))
-    #
-    # prediction = gaussian_filter(prediction, 1, mode='nearest')
-
-    plt.subplot(1,4,3)
-    plt.imshow(prediction)
-    # ax = fig.add_subplot(143, projection='3d')
-    # ax.plot_surface(X, Y, prediction)
-    # plt.title('Masked')
-
-    plt.subplot(1,4,4)
-
-    import time
-
-    print('******')
-    print(np.sum(h_minima(-prediction, (highest-lowest)/5)))
-    print(h_minima(-prediction, (highest-lowest)/5))
-    print('******')
-
-    fraction = np.arange(0, 1, .05)
-    foo = []
-    for f in fraction:
-        maxima = h_maxima(prediction, f * (highest - lowest))
-        s = np.sum(maxima)
-        if s == 1 or s == maxima.size:
-            foo.append(False)
-        else:
-            foo.append(True)
-
-    # result = watershed(-prediction)
-    # plt.imshow(result)
-    # plt.title('Watershed')
-
-    # multimodal = len(np.unique(result)) > 1
-    multimodal = np.sum(h_minima(-prediction, (highest - lowest) / 5)) > 1
-    plt.xlabel('multimodal={}'.format(multimodal))
-
-    plt.tight_layout()
-    plt.show()
-
-    return multimodal, fraction, foo
+    image = fit_image(weights, positions_2d)
+    return get_fraction_peak_at_centroid(image) < .6
 
 
 def find_radius(weights, positions_2d):
