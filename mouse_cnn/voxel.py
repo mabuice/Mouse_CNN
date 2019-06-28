@@ -2,7 +2,14 @@ import numpy as np
 import pickle
 from mcmodels.core import VoxelModelCache
 from mouse_cnn.flatmap import FlatMap
-
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.spatial import ConvexHull
+from scipy.ndimage.filters import gaussian_filter
+import matplotlib.path as path
+from sklearn.kernel_ridge import KernelRidge
+from skimage.morphology import watershed, h_minima, h_maxima
+from scipy.optimize import curve_fit
 
 """
 Code for estimating density profiles of inter-area connections from voxel model
@@ -72,6 +79,7 @@ layers = ['2/3', '4', '5']
 
 
 class Target():
+    # note: gamma scaling should be local to each target
     def __init__(self, area, layer, external_in_degree=1000):
         """
         :param area: name of area
@@ -182,7 +190,14 @@ class Target():
         flatmap = FlatMap.get_instance()
         positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
 
+        c = 0
         for target_voxel in range(len(weights)):
+            # if c == 3:
+            #     with open('foo.pkl', 'wb') as f:
+            #         pickle.dump((weights[target_voxel], positions_2d), f)
+            #     # assert False
+            c += 1
+
             if not is_multimodal(weights[target_voxel], positions_2d):
                 sigmas.append(find_radius(weights[target_voxel], positions_2d))
 
@@ -197,14 +212,205 @@ class Target():
         return result
 
 
+def fit_image(weights, positions_2d):
+    """
+    :param weights: connectivity weights for source voxels
+    :param positions_2d: flatmap positions of source voxels
+    :return: approximation of connection density on a grid
+    """
+    positions_2d = np.array(positions_2d)
+
+    range_x = [np.min(positions_2d[:,0]), np.max(positions_2d[:,0])]
+    range_y = [np.min(positions_2d[:,1]), np.max(positions_2d[:,1])]
+
+    n_steps = 20
+    x = np.linspace(range_x[0], range_x[1], n_steps)
+    y = np.linspace(range_y[0], range_y[1], n_steps)
+
+    X, Y = np.meshgrid(x, y)
+
+    regression = KernelRidge(alpha=1, kernel='rbf')
+    regression.fit(positions_2d, weights)
+
+    coords = np.zeros((n_steps**2, 2))
+    coords[:,0] = X.flatten()
+    coords[:,1] = Y.flatten()
+
+    prediction = regression.predict(coords)
+    prediction = np.reshape(prediction, (n_steps, n_steps))
+
+    hull = ConvexHull(positions_2d)
+    v = np.concatenate((hull.vertices, [hull.vertices[0]]))
+
+    p = path.Path([(positions_2d[i,0], positions_2d[i,1]) for i in v])
+    inside = p.contains_points(coords)
+    outside = [not x for x in inside]
+
+    lowest = np.min(prediction)
+    highest = np.max(prediction)
+
+    prediction = np.reshape(prediction, n_steps**2)
+    prediction[outside] = lowest
+    prediction[prediction < lowest + 0.2*(highest-lowest)] = lowest
+    prediction = np.reshape(prediction, (n_steps, n_steps))
+
+    prediction = gaussian_filter(prediction, 1, mode='nearest')
+    prediction = prediction - np.min(prediction)
+
+    return prediction
+
+
+def get_multimodal_depth_fraction(image):
+    lowest = np.min(image)
+    highest = np.max(image)
+
+    step = .02
+    fraction = np.arange(0, 1, step)
+    for f in np.arange(0, 1+step, step):
+        maxima = h_maxima(image, f * (highest - lowest))
+        s = np.sum(maxima)
+
+        # I don't know why the second condition is needed below, but sometimes with a unimodal
+        # image, s is a matrix of all ones
+        if s == 1 or s == maxima.size:
+            return f
+
+    return 1
+
+
+def get_fraction_peak_at_centroid(image):
+    image = image - np.min(image)
+    cx0, cx1 = get_centroid(image)
+    value_at_centroid = image[int(round(cx0)), int(round(cx1))]
+    return value_at_centroid / np.max(image)
+
+
+def get_centroid(image):
+    X1, X0 = np.meshgrid(range(image.shape[1]), range(image.shape[0]))
+    total = np.sum(image)
+    cx0 = np.sum(X0 * image) / total
+    cx1 = np.sum(X1 * image) / total
+    return cx0, cx1
+
+
+def get_gaussian_fit(image):
+    X1, X0 = np.meshgrid(range(image.shape[0]), range(image.shape[1]))
+    X = np.concatenate((X0.flatten()[:,None], X1.flatten()[:,None]), axis=1)
+
+    def gaussian(peak, mean, covariance):
+        ic = np.linalg.inv(covariance)
+        offsets = (X - mean)
+        distances = [np.dot(offset, np.dot(ic, offset.T))/2 for offset in offsets]
+        return peak * np.exp(-np.array(distances)/2)
+
+    def f(x, peak, m1, m2, cov11, cov12, cov22):
+        return gaussian(peak, [m1, m2], [[cov11, cov12], [cov12, cov22]])
+
+    scale = np.max(image)
+    rescaled_image = image / scale
+
+    s = image.shape[0]
+    cx0, cx1 = get_centroid(image)
+    p0 = [np.max(rescaled_image), cx0, cx1, 3, 0, 3]
+    lower_bounds = [0, 0, 0, 1, 0, 1]
+    upper_bounds = [np.max(rescaled_image), s, s, s/2, s/2, s/2]
+    popt, pcov = curve_fit(f, X, rescaled_image.flatten(), bounds=(lower_bounds, upper_bounds), p0=p0)
+    popt[0] = popt[0]*scale
+
+    fit = f(None, *popt)
+
+    difference = fit.reshape(image.shape) - image
+    rmse = np.mean(difference**2)**.5
+    # print('RMSE: {}'.format(rmse))
+
+    # print(p0)
+    # print(popt)
+    # plt.subplot(1,2,1)
+    # plt.imshow(image)
+    # plt.colorbar()
+    # plt.subplot(1,2,2)
+    # plt.imshow(fit.reshape(image.shape))
+    # plt.colorbar()
+    # plt.show()
+
+    return rmse
+
+
 def is_multimodal(weights, positions_2d):
     """
     :param weights: connectivity weights for source voxels
     :param positions_2d: flatmap positions of source voxels
     :return: True if weights have multiple dense regions, False if single dense region
     """
-    #TODO: implement - use watershed algorithm
-    return False
+    prediction = fit_image(weights, positions_2d)
+
+    fig = plt.figure(figsize=(10,4))
+    plt.subplot(1,4,1)
+    flatmap_weights(positions_2d, weights)
+
+    positions_2d = np.array(positions_2d)
+    hull = ConvexHull(positions_2d)
+    v = np.concatenate((hull.vertices, [hull.vertices[0]]))
+
+    plt.plot(positions_2d[v,0], positions_2d[v,1])
+
+    # p = path.Path([(positions_2d[i,0], positions_2d[i,1]) for i in v])
+    # inside = p.contains_points(coords)
+    # outside = [not x for x in inside]
+    plt.title('Kernel')
+
+    plt.subplot(1,4,2)
+    plt.imshow(prediction)
+    plt.title('Smoothed')
+
+    lowest = np.min(prediction)
+    highest = np.max(prediction)
+    #
+    # prediction = np.reshape(prediction, n_steps**2)
+    # prediction[outside] = lowest
+    # prediction[prediction < lowest + 0.2*(highest-lowest)] = lowest
+    # prediction = np.reshape(prediction, (n_steps, n_steps))
+    #
+    # prediction = gaussian_filter(prediction, 1, mode='nearest')
+
+    plt.subplot(1,4,3)
+    plt.imshow(prediction)
+    # ax = fig.add_subplot(143, projection='3d')
+    # ax.plot_surface(X, Y, prediction)
+    # plt.title('Masked')
+
+    plt.subplot(1,4,4)
+
+    import time
+
+    print('******')
+    print(np.sum(h_minima(-prediction, (highest-lowest)/5)))
+    print(h_minima(-prediction, (highest-lowest)/5))
+    print('******')
+
+    fraction = np.arange(0, 1, .05)
+    foo = []
+    for f in fraction:
+        maxima = h_maxima(prediction, f * (highest - lowest))
+        s = np.sum(maxima)
+        if s == 1 or s == maxima.size:
+            foo.append(False)
+        else:
+            foo.append(True)
+
+    # result = watershed(-prediction)
+    # plt.imshow(result)
+    # plt.title('Watershed')
+
+    # multimodal = len(np.unique(result)) > 1
+    multimodal = np.sum(h_minima(-prediction, (highest - lowest) / 5)) > 1
+    plt.xlabel('multimodal={}'.format(multimodal))
+
+    plt.tight_layout()
+    plt.show()
+
+    return multimodal, fraction, foo
+
 
 def find_radius(weights, positions_2d):
     #TODO: deconvolve from model blur and flatmap blur
@@ -218,6 +424,14 @@ def find_radius(weights, positions_2d):
     return (np.sum(weights * square_distance) / total)**.5
 
 
+def flatmap_weights(positions_2d, weights):
+    rel_weights = weights / max(weights)
+    for position, rel_weight in zip(positions_2d, rel_weights):
+        color = [rel_weight, 0, 1 - rel_weight, .5]
+        plt.scatter(position[0], position[1], c=[color])
+    plt.xticks([]), plt.yticks([])
+
+
 if __name__ == '__main__':
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
@@ -227,4 +441,9 @@ if __name__ == '__main__':
     print('VISp2/3->VISpm4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
     print(t)
 
+    # with open('foo.pkl', 'rb') as f:
+    #     weights, positions_2d = pickle.load(f)
+    #
+    # multimodal = is_multimodal(weights, positions_2d)
+    # print('multimodal={}'.format(multimodal))
 
