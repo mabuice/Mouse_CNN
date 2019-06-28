@@ -49,18 +49,33 @@ class Data:
         :return: estimate of number of excitatory neurons in given area/layer
         """
         #TODO: compare with other estimates
-        #TODO: also need estimates for VISrl, VISli, VISpor
+
+        if area in ['VISrl', 'VISli', 'VISpor']:
+            # TODO: Ero et al. doesn't include these estimates
+            return 100000
+
         return self.e18.get_n_excitatory(area, layer)
 
-    def get_extrinsic_in_degree(self, area, layer):
+    def get_extrinsic_in_degree(self, target_area, target_layer):
         """
-        :param area: visual area name (e.g. 'VISp')
-        :param layer: layer name (e.g. '2/3')
+        :param target_area: visual area name (e.g. 'VISp')
+        :param target_layer: layer name (e.g. '2/3')
         :return: estimate of mean number of neurons from OTHER AREAS that synapse onto a
             single excitatory neuron in given area / layer
         """
-        #TODO: replace with real estimate
-        return 1000
+        return 1000 #TODO: replace with real estimate
+
+    def get_kernel_width(self, source_area, source_layer, target_area, target_layer):
+        """
+        Kernel width associated with an inter-area connection, estimated from voxel model.
+
+        :param source_area: name of source visual area (e.g. 'VISp')
+        :param source_layer: name of source layer (e.g. '2/3)
+        :param target_area: name of target visual area (e.g. 'VISrl')
+        :param target_layer: name of target layer (e.g. '4')
+        :return: kernel width (micrometers)
+        """
+        return 500 #TODO: real estimates from voxel.py
 
     def get_hit_rate_peak(self, source_layer, target_layer):
         """
