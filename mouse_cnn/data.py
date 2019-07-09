@@ -2,6 +2,7 @@ import os
 import csv
 import numpy as np
 from scipy.optimize import curve_fit
+from mouse_cnn.voxel import Target
 
 """
 Interface to mouse data sources. 
@@ -75,7 +76,8 @@ class Data:
         :param target_layer: name of target layer (e.g. '4')
         :return: kernel width (micrometers)
         """
-        return 500 #TODO: real estimates from voxel.py
+        target = Target(target_area, target_layer)
+        return 1000 * target.get_kernel_width_mm(source_area+source_layer)
 
     def get_hit_rate_peak(self, source_layer, target_layer):
         """
@@ -209,5 +211,32 @@ class Billeh19():
         target_index = self._layers.index(target)
 
         return self.probabilities[source_index][target_index]
+
+
+def check_all_kernels():
+    """
+    Prints kernel width estimates for all feedforward cortico-cortical connections.
+    This takes something like 20 minutes to run.
+    """
+    data = Data()
+    cortical_areas = [area for area in data.get_areas() if not area == 'LGNd']
+    for target_area in cortical_areas:
+        for source_area in cortical_areas:
+            if data.get_hierarchical_level(source_area) < data.get_hierarchical_level(target_area):
+                for target_layer in data.get_layers():
+                    for source_layer in data.get_layers():
+                        print('{}{}-{}{} kernel {} micrometers'.format(
+                            source_area,
+                            source_layer,
+                            target_area,
+                            target_layer,
+                            data.get_kernel_width(source_area, source_layer, target_area, target_layer)
+                        ))
+
+
+if __name__ == '__main__':
+    check_all_kernels()
+    # data = Data()
+    # print(data.get_kernel_width('VISp', '2/3', 'VISrl', '4'))
 
 

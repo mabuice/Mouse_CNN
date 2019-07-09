@@ -3,12 +3,11 @@ import pickle
 from mcmodels.core import VoxelModelCache
 from mouse_cnn.flatmap import FlatMap
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial import ConvexHull
 from scipy.ndimage.filters import gaussian_filter
 import matplotlib.path as path
 from sklearn.kernel_ridge import KernelRidge
-from skimage.morphology import watershed, h_minima, h_maxima
+from skimage.morphology import h_maxima
 from scipy.optimize import curve_fit
 
 """
@@ -190,14 +189,7 @@ class Target():
         flatmap = FlatMap.get_instance()
         positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
 
-        c = 0
         for target_voxel in range(len(weights)):
-            # if c == 3:
-            #     with open('foo.pkl', 'wb') as f:
-            #         pickle.dump((weights[target_voxel], positions_2d), f)
-            #     # assert False
-            c += 1
-
             if not is_multimodal(weights[target_voxel], positions_2d):
                 sigmas.append(find_radius(weights[target_voxel], positions_2d))
 
@@ -320,8 +312,8 @@ def get_gaussian_fit(image):
 
     difference = fit.reshape(image.shape) - image
     rmse = np.mean(difference**2)**.5
-    # print('RMSE: {}'.format(rmse))
 
+    # print('RMSE: {}'.format(rmse))
     # print(p0)
     # print(popt)
     # plt.subplot(1,2,1)
@@ -341,20 +333,26 @@ def is_multimodal(weights, positions_2d):
     :param positions_2d: flatmap positions of source voxels
     :return: True if weights have multiple dense regions, False if single dense region
     """
-    image = fit_image(weights, positions_2d)
-    return get_fraction_peak_at_centroid(image) < .6
+    if max(weights) == 0:
+        return False
+    else:
+        image = fit_image(weights, positions_2d)
+        return get_fraction_peak_at_centroid(image) < .6
 
 
 def find_radius(weights, positions_2d):
-    #TODO: deconvolve from model blur and flatmap blur
+    #TODO (Stefan): deconvolve from model blur and flatmap blur
     positions_2d = np.array(positions_2d)
     total = sum(weights)
-    centroid_x = np.sum(weights * positions_2d[:,0]) / total
-    centroid_y = np.sum(weights * positions_2d[:,1]) / total
-    offset_x = positions_2d[:,0] - centroid_x
-    offset_y = positions_2d[:,1] - centroid_y
-    square_distance = offset_x**2 + offset_y**2
-    return (np.sum(weights * square_distance) / total)**.5
+    if total == 0:
+        return 0
+    else:
+        centroid_x = np.sum(weights * positions_2d[:,0]) / total
+        centroid_y = np.sum(weights * positions_2d[:,1]) / total
+        offset_x = positions_2d[:,0] - centroid_x
+        offset_y = positions_2d[:,1] - centroid_y
+        square_distance = offset_x**2 + offset_y**2
+        return (np.sum(weights * square_distance) / total)**.5
 
 
 def flatmap_weights(positions_2d, weights):
