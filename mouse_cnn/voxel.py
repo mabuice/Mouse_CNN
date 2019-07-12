@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 from mcmodels.core import VoxelModelCache
 from mouse_cnn.flatmap import FlatMap
+from mouse_cnn.data import Data
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 from scipy.ndimage.filters import gaussian_filter
@@ -33,7 +34,7 @@ class VoxelModel():
 
         self.structure_tree = cache.get_structure_tree()
 
-    def get_weights(self, source_name='VISp2/3', target_name='VISpm4'):
+    def get_weights(self, source_name, target_name):
         pre_id = self.structure_tree.get_id_acronym_map()[source_name]
         post_id = self.structure_tree.get_id_acronym_map()[target_name]
 
@@ -51,7 +52,7 @@ class VoxelModel():
             weights_by_target_voxel.append(w)
         return weights_by_target_voxel
 
-    def get_positions(self, source_name='VISp2/3'):
+    def get_positions(self, source_name):
         pre_id = self.structure_tree.get_id_acronym_map()[source_name]
         mask_indices = np.array(self.source_mask.mask.nonzero())
 
@@ -61,7 +62,6 @@ class VoxelModel():
                 pre_positions.append(mask_indices[:, i])
 
         return pre_positions
-
 
     @staticmethod
     def get_instance():
@@ -73,18 +73,30 @@ class VoxelModel():
         return VoxelModel._instance
 
 
-areas = ['VISp', 'VISpm']
-layers = ['2/3', '4', '5']
-
-
 class Target():
-    # note: gamma scaling should be local to each target
-    def __init__(self, area, layer, external_in_degree=1000):
+    """
+    A model of the incoming inter-area connections to a target area / layer, including
+    gaussian kernel widths and peak hit rates for each inbound connection. This model
+    does not deal with inter-laminar connections within an area, which are based on
+    different data sources (not the voxel model).
+
+    An important property of the model is the variable "gamma", which maps voxel-model
+    connection weight, w, to in-degree, d. Specifically, d = gamma w. Gamma is
+    taken to be a property of a target area/layer that may be different for different
+    targets. Allowing gamma to vary between targets simplifies its estimate.
+    A more constrained estimate could be obtained by assuming it is shared across all
+    targets. On the other hand, the weights measure axon density, which may not have
+    exactly the same relationship with numbers of connections for all targets. Here
+    we assume only that it is constant for all sources within a target. This may not
+    be true either, but it allows us to estimate numbers of connections from voxel weights.
+    """
+
+    def __init__(self, area, layer, external_in_degree):
         """
         :param area: name of area
         :param layer: name of layer
         :param external_in_degree: Total neurons providing feedforward input to average
-            neuron from other cortical areas.
+            neuron, from other cortical areas.
         """
         self.target_area = area
         self.target_name = area + layer
@@ -95,18 +107,20 @@ class Target():
         self.gamma = None # scale factor for total inbound voxel weight -> extrinsic in-degree
 
         self.source_names = None # list of possible extrinsic source area / layers
-        self.mean_totals = None # mean of total inbound weight across target voxels for each source
+        self.mean_totals = None # mean of total inbound weight across *target* voxels for each source
 
     def _set_external_sources(self):
         """
         :return: Names of sources (area, layer) that may project to this target,
-            excluding other layers in the same area
+            including only lower areas in the visual hierarchy
         """
         self.source_names = []
-        for area in areas:
-            if not area == self.target_area:
-                for layer in layers:
-                    self.source_names.append(area + layer)
+        data = Data()
+        for area in data.get_areas():
+            if data.get_hierarchical_level(area) < data.get_hierarchical_level(self.target_area):
+                if 'LGN' not in area: #TODO: handle LGN->VISp as special case
+                    for layer in data.get_layers():
+                        self.source_names.append(area + layer)
 
     def _set_mean_total_weights(self):
         if self.source_names is None:
@@ -130,7 +144,6 @@ class Target():
         if self.mean_totals is None:
             self._set_mean_total_weights()
 
-        print(self.mean_totals)
         self.gamma = self.e / np.sum(self.mean_totals)
 
     def get_n_external_inputs_for_source(self, source_name):
@@ -367,9 +380,9 @@ if __name__ == '__main__':
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
 
-    t = Target('VISpm', '4')
+    t = Target('VISpl', '4', external_in_degree=1000)
     t.set_gamma()
-    print('VISp2/3->VISpm4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
+    print('VISp2/3->VISpl4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
     print(t)
 
     # with open('foo.pkl', 'rb') as f:

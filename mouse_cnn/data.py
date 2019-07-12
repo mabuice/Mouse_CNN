@@ -3,7 +3,6 @@ import os
 import csv
 import numpy as np
 from scipy.optimize import curve_fit
-from mouse_cnn.voxel import Target
 
 """
 Interface to mouse data sources.
@@ -77,7 +76,11 @@ class Data:
         :param target_layer: name of target layer (e.g. '4')
         :return: kernel width (micrometers)
         """
-        target = Target(target_area, target_layer)
+        # TODO: this is here due to a circular dependence between data and voxel (whoops)
+        # TODO: consider removing this method; it just wraps target.get_kernel_width
+        from mouse_cnn.voxel import Target
+        target = Target(target_area, target_layer,
+                        external_in_degree=self.get_extrinsic_in_degree(target_area, target_layer))
         return 1000 * target.get_kernel_width_mm(source_area+source_layer)
 
     def get_hit_rate_peak(self, source_layer, target_layer):
