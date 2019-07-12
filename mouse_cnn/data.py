@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import csv
 import numpy as np
@@ -5,7 +6,7 @@ from scipy.optimize import curve_fit
 from mouse_cnn.voxel import Target
 
 """
-Interface to mouse data sources. 
+Interface to mouse data sources.
 """
 
 data_folder = 'data_files'
@@ -238,5 +239,3 @@ if __name__ == '__main__':
     check_all_kernels()
     # data = Data()
     # print(data.get_kernel_width('VISp', '2/3', 'VISrl', '4'))
-
-
