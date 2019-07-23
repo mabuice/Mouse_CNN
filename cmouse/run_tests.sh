@@ -1,3 +1,3 @@
 #!/bin/bash
-CUDA_VISIBLE_DEVICES = 1
-python -m nose -v tests
+CUDA_VISIBLE_DEVICES=1
+python3.6 -m nose -v tests

@@ -1,14 +1,15 @@
 from collections import namedtuple
 import networkx as nx
+import matplotlib.pyplot as plt
 AnatomicalLayerName = namedtuple('AL', ['area', 'depth'])
 
 class AnatomicalLayer:
-    def __init__(self, name, num, rf_size, vf_size):
+    def __init__(self, name, num):
         assert(isinstance(name, AnatomicalLayerName))
         self.name = name
         self.num = num
-        self.rf_size = rf_size
-        self.vf_size = vf_size
+        #self.rf_size = rf_size
+        #self.vf_size = vf_size
 
 class Projection:
     def __init__(self, pre, post):
@@ -69,3 +70,18 @@ class AnatomicalNet:
         for proj in self.projections:
             graph.add_edge(proj.pre.name, proj.post.name)
         return graph
+
+    def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
+        G = nx.DiGraph()
+
+        edges = [(p.pre, p.post) for p in self.projections]
+
+        for edge in edges:
+            G.add_edge(edge[0], edge[1])
+        pos = nx.shell_layout(G)
+        node_label_dict = { layer:layer.name.area + layer.name.depth for layer in G.nodes()}
+
+        plt.figure(figsize=(10,10))
+        nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color)
+        nx.draw_networkx_labels(G, pos, node_label_dict)
+        plt.show()
