@@ -11,6 +11,7 @@ def test_network():
     layer4 = NetworkLayer(4, 100, 100, 2, False, False)
     layer5 = NetworkLayer(5, 100, 100, 6, False, True)
 
+    net.add_layer(Input)
     net.add_layer(layer1)
     net.add_layer(layer2)
     net.add_layer(layer3)
@@ -40,3 +41,4 @@ def test_network():
     mnet = MouseNet(net)
     a = torch.randn(2, 3, 100, 100)
     mnet(a)
+    return net
