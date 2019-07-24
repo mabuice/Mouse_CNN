@@ -2,13 +2,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 class NetworkLayer:
-    def __init__(self, index, sizex, sizey, num_channel, is_input, is_output):
+    def __init__(self, index, sizex, sizey, num_channel):
         self.index = index
         self.sizex = sizex
         self.sizey = sizey
         self.num_channel = num_channel
-        self.is_input = is_input
-        self.is_output = is_output
 
 class Connection:
     def __init__(self, pre, post, kernel_size, stride,
@@ -24,8 +22,14 @@ class Connection:
 
 class Network:
     def __init__(self):
+        self.input_layer = None
         self.layers = []
         self.connections = []
+
+    def add_input_layer(self, layer):
+        assert(self.input_layer == None)
+        self.add_layer(layer)
+        self.input_layer = layer
 
     def add_layer(self, layer):
         assert(isinstance(layer, NetworkLayer))
@@ -49,6 +53,13 @@ class Network:
             if layer.index == layer_index:
                 return layer
         print("No layer with index %d found!"%layer_index)
+
+    def is_terminal_layer(self, layer):
+        assert(isinstance(layer, NetworkLayer))
+        for c in self.connections:
+            if c.pre == layer:
+                return False
+        return True
 
     def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
         G=nx.DiGraph()

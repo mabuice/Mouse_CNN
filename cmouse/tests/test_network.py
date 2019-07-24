@@ -4,14 +4,14 @@ import torch
 
 def test_network():
     net = Network()
-    Input = NetworkLayer(0, 100, 100, 3, True, False)
-    layer1 = NetworkLayer(1, 100, 100, 4, False, False)
-    layer2 = NetworkLayer(2, 100, 100, 12, False, False)
-    layer3 = NetworkLayer(3, 100, 100, 4, False, False)
-    layer4 = NetworkLayer(4, 100, 100, 2, False, False)
-    layer5 = NetworkLayer(5, 100, 100, 6, False, True)
+    Input = NetworkLayer(0, 100, 100, 3)
+    layer1 = NetworkLayer(1, 100, 100, 4)
+    layer2 = NetworkLayer(2, 100, 100, 12)
+    layer3 = NetworkLayer(3, 100, 100, 4)
+    layer4 = NetworkLayer(4, 100, 100, 2)
+    layer5 = NetworkLayer(5, 100, 100, 6)
 
-    net.add_layer(Input)
+    net.add_input_layer(Input)
     net.add_layer(layer1)
     net.add_layer(layer2)
     net.add_layer(layer3)

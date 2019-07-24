@@ -31,8 +31,9 @@ class MouseNet(nn.Module):
         nodes_map = {}
         current_nodes = []
         output_nodes = {}
+
         for c in self.network.connections:
-            if c.pre.is_input == True:
+            if c.pre.index == self.network.input_layer.index:
                 new_node = nn.Conv2d(
                     c.num_input, c.num_output, c.kernel_size,
                     stride=c.stride)(x)
@@ -44,28 +45,28 @@ class MouseNet(nn.Module):
             key = current_nodes[0]
             del current_nodes[0]
             node = nodes_map[key]
-            if True:
-                for c in self.network.connections:
-                    if c.pre.index == key:
-                        new_node = nn.Conv2d(c.num_input, c.num_output,
-                                             c.kernel_size, stride=c.stride)(node)
-                        new_node = resize_tensor(new_node, c.post.sizex, c.post.sizey)
 
-                        if c.post.is_output:
-                            if c.post.index in output_nodes:
-                                # TODO: check channel match
-                                output_nodes[c.post.index] = torch.add(
-                                output_nodes[c.post.index], new_node)
-                            else:
-                                output_nodes[c.post.index] = new_node
+            for c in self.network.connections:
+                if c.pre.index == key:
+                    new_node = nn.Conv2d(c.num_input, c.num_output,
+                                         c.kernel_size, stride=c.stride)(node)
+                    new_node = resize_tensor(new_node, c.post.sizex, c.post.sizey)
+
+                    if self.network.is_terminal_layer(c.post):
+                        if c.post.index in output_nodes:
+                            # TODO: check channel match
+                            output_nodes[c.post.index] = torch.add(
+                            output_nodes[c.post.index], new_node)
                         else:
-                            if c.post.index in nodes_map:
-                                # TODO: check channel match
-                                nodes_map[c.post.index] = torch.add(
-                                nodes_map[c.post.index], new_node)
-                            else:
-                                nodes_map[c.post.index] = new_node
-                                current_nodes.append(c.post.index)
+                            output_nodes[c.post.index] = new_node
+                    else:
+                        if c.post.index in nodes_map:
+                            # TODO: check channel match
+                            nodes_map[c.post.index] = torch.add(
+                            nodes_map[c.post.index], new_node)
+                        else:
+                            nodes_map[c.post.index] = new_node
+                            current_nodes.append(c.post.index)
 
         out = None
         for key in output_nodes:
