@@ -9,9 +9,10 @@ class AugData(Data):
 
 def gen_anatomy(input_depths = ['4'],
                 output_depths = ['2/3', '5'],
-                lamimar_connections = [('4', '2/3'), ('2/3', '5')]):
+                lamimar_connections = [('4', '2/3'), ('2/3', '5')],
+                data_folder = '../data_files/'):
     anet = AnatomicalNet()
-    data = AugData()
+    data = AugData(data_folder=data_folder)
     areas = data.get_areas()
     depths = data.get_layers()
     output_map = {} # collect output layers for each hierarchy
