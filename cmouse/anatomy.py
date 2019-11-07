@@ -85,7 +85,7 @@ class AnatomicalNet:
     def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
         G, node_label_dict = self.make_graph()
         plt.figure(figsize=(10,10))
-        pos = nx.shell_layout(G)
+        pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
         nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color)
         nx.draw_networkx_labels(G, pos, node_label_dict)
         plt.show()
