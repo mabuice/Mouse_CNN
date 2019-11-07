@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
 import torch
+from torch import nn
 from config import *
 
 class ConvParam:
@@ -47,7 +48,7 @@ class Network:
         # construct conv layer for input -> LGNv
         LGNv_out = np.floor(anet.find_layer('LGNv','').num/INPUT_SIZE[0]/INPUT_SIZE[1]/INPUT_SIZE[2])
         out_size =  INPUT_SIZE[1]*anet.find_layer('LGNv','').sigma
-        out_sigma = INPUT_SIZE[2]*anet.find_layer('LGNv','').sigma
+        out_sigma = anet.find_layer('LGNv','').sigma
         convlayer = ConvLayer('input', 'LGNv', ConvParam(in_channels=INPUT_SIZE[0], out_channels=LGNv_out),
                               out_size, out_sigma)
         self.layers.append(convlayer)
@@ -93,13 +94,14 @@ class Network:
         plt.show()   
 
 
-class MouseNet(torch.nn.Module):
+
+class MouseNet(nn.Module):
     """
     torch model constructed by parameters provided in network.
     """
     def __init__(self, network):
         super(MouseNet, self).__init__()
-        self.Convs = {}
+        self.Convs = nn.ModuleDict()
         self.network = network
         
         G, _ = network.make_graph()
@@ -111,19 +113,33 @@ class MouseNet(torch.nn.Module):
             layer = network.find_conv_source_target(e[0], e[1])
             params = layer.params
             padding = int(((layer.out_sigma*params.stride-1)*layer.out_size/layer.out_sigma+params.kernel_size-params.stride)/2)
-            self.Convs[e] = torch.nn.Conv2d(params.in_channels, params.out_channels, params.kernel_size,
-                                           padding=padding)
+            self.Convs[e[0]+e[1]] = nn.Conv2d(params.in_channels, params.out_channels, params.kernel_size,
+                                                    padding=padding)
+        final_layer = network.find_conv_source_target('VISpor2/3','VISpor5') 
+        final_size = final_layer.out_size
+        final_channels = final_layer.params.out_channels
+        self.classifier = nn.Sequential(
+            nn.Linear(final_channels * final_size * final_size, HIDDEN_LINEAR),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(HIDDEN_LINEAR, HIDDEN_LINEAR),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
+        )
 
     def forward(self, x):
         calc_graph = {}
         for e in self.edge_bfs:
-            print(e)
             if e[0] == 'input':
-                calc_graph[e[1]] = self.Convs[e](x)
+                calc_graph[e[1]] = self.Convs[e[0]+e[1]](x)
             else:
                 if e[1] in calc_graph:
-                    calc_graph[e[1]] = calc_graph[e[1]] + self.Convs[e](calc_graph[e[0]])
+                    calc_graph[e[1]] = calc_graph[e[1]] + self.Convs[e[0]+e[1]](calc_graph[e[0]])
                 else:
-                    calc_graph[e[1]] = self.Convs[e](calc_graph[e[0]])
-        return calc_graph['VISpor5']
+                    calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
+
+        x = torch.flatten(calc_graph['VISpor5'], 1)
+        x = self.classifier(x)
+        return x
                 
