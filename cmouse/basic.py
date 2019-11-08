@@ -38,10 +38,10 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(mousenet.parameters(), lr=0.01, momentum=0.9)
 
 # use GPU
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 mousenet.to(device)
 
-for epoch in range(2):  # loop over the dataset multiple times
+for epoch in range(40):  # loop over the dataset multiple times
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
@@ -51,7 +51,7 @@ for epoch in range(2):  # loop over the dataset multiple times
 
         # forward + backward + optimize
         outputs = mousenet(inputs)
-        
+
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
