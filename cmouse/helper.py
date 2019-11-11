@@ -1,7 +1,6 @@
 import torchvision
 import torch
 
-
 def resize_tensor(input_tensors, h, w):
     batch_size, channel, height, width = input_tensors.shape
     output = None
