@@ -34,12 +34,67 @@ class VoxelModel():
 
         self.structure_tree = cache.get_structure_tree()
 
+    # def part_of_layer(self, structure_id, layer_id):
+    #     """
+    #     :param structure_id: ID of a visual structure, such as VISp2/3
+    #     :param layer_id: ID of a layer of whole visual cortex, such as VIS2/3
+    #     :return: True if the structure is part of the layer, False if it is
+    #         part of a different layer or not part of visual cortex or the
+    #         layer is not one of the visual cortex layers
+    #     """
+    #
+    #     visual_layers = [801, 561, 913, 937, 457, 497]
+    #
+    #     if layer_id not in visual_layers:
+    #         return False
+    #
+    #     structure = self.structure_tree.get_structures_by_id([structure_id])[0]['acronym']
+    #     # # get name of structure's cortical layer
+    #     # ancestors = self.structure_tree.get_ancestor_id_map()[structure_id]
+    #     # structure = self.structure_tree.get_structures_by_id([ancestors[0]])[0]['acronym']
+    #     #
+    #     structure_is_a_cortical_layer = False
+    #     for l in ['1', '2/3', '4', '5', '6a', '6b']:
+    #         if structure.endswith(l):
+    #             structure_is_a_cortical_layer = True
+    #             break
+    #
+    #     if not structure_is_a_cortical_layer:
+    #         return False
+    #
+    #     # print('{} {} {}'.format(l, structure, structure[:-len(l)]))
+    #     area = structure[:-len(l)]
+    #
+    #     # area = self.structure_tree.get_structures_by_id([ancestors[1]])[0]['acronym']
+    #     # assert structure.startswith(area), \
+    #     #     'Expected structure name {} to start with {}'.format(structure, area)
+    #     # structure_layer_name = structure[len(area):]
+    #     #
+    #     layer_name = self.structure_tree.get_structures_by_id([layer_id])[0]['acronym']
+    #     part_of_layer = l in layer_name
+    #
+    #     if not part_of_layer:
+    #         return False
+    #
+    #     visual_cortex_id = self.structure_tree.get_id_acronym_map()['VIS']
+    #     if self.structure_tree.structure_descends_from(structure_id, visual_cortex_id):
+    #         return True
+    #
+    #     # in structure_tree, VISrl is part of Posterior parietal association areas
+    #     # but we will treat it as part of visual cortex
+    #     VISrl_id = self.structure_tree.get_id_acronym_map()['VISrl']
+    #     if self.structure_tree.structure_descends_from(structure_id, VISrl_id):
+    #         return True
+    #
+    #     return False
+
     def get_weights(self, source_name, target_name):
         pre_id = self.structure_tree.get_id_acronym_map()[source_name]
         post_id = self.structure_tree.get_id_acronym_map()[target_name]
 
         pre_indices = []
         post_indices = []
+
         for i in range(len(self.source_keys)):
             if self.structure_tree.structure_descends_from(self.source_keys[i], pre_id):
                 pre_indices.append(i)
@@ -103,6 +158,7 @@ class Target():
         self.e = external_in_degree
 
         self.voxel_model = VoxelModel.get_instance()
+        self.num_voxels = len(self.voxel_model.get_positions(self.target_name))
 
         self.gamma = None # scale factor for total inbound voxel weight -> extrinsic in-degree
 
@@ -203,10 +259,66 @@ class Target():
         positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
 
         for target_voxel in range(len(weights)):
+
+            source = Source(weights[target_voxel], positions_2d)
+
             if not is_multimodal(weights[target_voxel], positions_2d):
                 sigmas.append(find_radius(weights[target_voxel], positions_2d))
 
+                flatmap_weights(positions_2d, weights[target_voxel])
+                plt.title('sigma: {} peak to border: {}'.format(sigmas[-1], source.peak_border_distance))
+                plt.show()
+
+        plt.hist(sigmas, 20)
+        plt.show()
+
         return np.mean(sigmas)
+
+    def flatmap_full_source_layer(self, layer, target_voxel):
+        visual_areas = ['VISp', 'VISl', 'VISrl', 'VISli', 'VISpl', 'VISal', 'VISpor']
+        visual_areas.extend(['VISpm', 'VISa', 'VISam'])
+
+        flatmap = FlatMap.get_instance()
+
+        all_weights = []
+        all_positions = []
+        source_areas = []
+        max_weight = 0
+        for area in visual_areas:
+            source_name = area + layer
+            weights = self.voxel_model.get_weights(source_name, self.target_name) # target voxel by source voxel
+            positions = self.voxel_model.get_positions(source_name) # source voxel by 3
+            positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
+            positions_2d = np.array(positions_2d)
+
+            m = np.max(np.array(weights))
+            if m > max_weight:
+                max_weight = m
+
+            all_weights.append(weights)
+            all_positions.append(positions_2d)
+            source_areas.append(area)
+
+        for weights, positions_2d, source_area in zip(all_weights, all_positions, source_areas):
+            flatmap_weights(positions_2d, weights[target_voxel])
+            hull = ConvexHull(positions_2d)
+            v = np.concatenate((hull.vertices, [hull.vertices[0]]))
+            path = np.array([(positions_2d[i, 0], positions_2d[i, 1]) for i in v])
+
+            print('{} {}'.format(source_area, self.target_name))
+            if self.target_area == source_area:
+                plt.plot(path[:, 0], path[:, 1], 'r')
+                target_position = self.voxel_model.get_positions(self.target_name)[target_voxel]
+                target_position_2d = flatmap.get_position_2d(target_position)
+                plt.plot(target_position_2d[0], target_position_2d[1], 'rx', markersize=18)
+            else:
+                plt.plot(path[:, 0], path[:, 1], 'k')
+
+        plt.savefig('L{}-to-{}-voxel{}.png'.format(
+            layer.replace('/', ''),
+            self.target_name.replace('/', ''),
+            target_voxel))
+        plt.show()
 
     def __str__(self):
         result = '{} gamma={}'.format(self.target_name, self.gamma)
@@ -217,12 +329,132 @@ class Target():
         return result
 
 
+class Source:
+    def __init__(self, weights, positions_2d):
+        self.weights = weights
+        self.positions_2d = np.array(positions_2d)
+
+        self.regression = KernelRidge(alpha=1, kernel='rbf')
+        self.regression.fit(positions_2d, weights)
+
+        hull = ConvexHull(positions_2d)
+        v = np.concatenate((hull.vertices, [hull.vertices[0]]))
+        self.convex_hull = path.Path([(self.positions_2d[i,0], self.positions_2d[i,1]) for i in v])
+
+        self.coords, self.image = self._get_image()
+
+        self.peak = self._find_peak()
+        self.peak_border_distance = self._distance_to_border(self.peak)
+
+    def _distance_to_border(self, coords):
+        # print('*********')
+        # print(self.convex_hull.vertices)
+        min_distance = 1e6
+        for i in range(len(self.convex_hull.vertices) - 1):
+            distance = _distance_to_line_segment(
+                coords,
+                self.convex_hull.vertices[i],
+                self.convex_hull.vertices[i+1])
+            if distance < min_distance:
+                min_distance = distance
+        return min_distance
+
+    def _find_peak(self):
+        # rough peak from precomputed image
+        max_ind = np.argmax(self.image)
+        max_coords = self.coords[max_ind, :]
+        # print('max coords: {} val: {}'.format(max_coords, self.image.flatten()[max_ind]))
+
+        # fine peak from local image around rough peak
+        range_x = [max_coords[0]-.25, max_coords[0]+.25]
+        range_y = [max_coords[1]-.25, max_coords[1]+.25]
+        n_steps = 20
+        coords = self._get_coords(n_steps, range_x=range_x, range_y=range_y)
+        fine_image = self.regression.predict(coords)
+
+        inside = self.convex_hull.contains_points(coords)
+        outside = [not x for x in inside]
+        fine_image[outside] = 0
+
+        max_ind = np.argmax(fine_image)
+        max_coords = coords[max_ind, :]
+
+        # print('max coords: {} val: {}'.format(max_coords, fine_image.flatten()[max_ind]))
+
+        # plt.figure(figsize=(8,3))
+        # plt.subplot(1,2,1)
+        # plt.imshow(self.image)
+        # plt.colorbar()
+        # plt.subplot(1,2,2)
+        # plt.imshow(np.reshape(fine_image, (n_steps, n_steps)))
+        # plt.colorbar()
+        # plt.show()
+
+        return max_coords
+
+    def _get_coords(self, n_steps, range_x=None, range_y=None):
+        if not range_x:
+            range_x = [np.min(self.positions_2d[:, 0]), np.max(self.positions_2d[:, 0])]
+        if not range_y:
+            range_y = [np.min(self.positions_2d[:, 1]), np.max(self.positions_2d[:, 1])]
+
+        x = np.linspace(range_x[0], range_x[1], n_steps)
+        y = np.linspace(range_y[0], range_y[1], n_steps)
+
+        X, Y = np.meshgrid(x, y)
+
+        coords = np.zeros((n_steps**2, 2))
+        coords[:,0] = X.flatten()
+        coords[:,1] = Y.flatten()
+        return coords
+
+    def _get_image(self):
+        n_steps = 20
+        coords = self._get_coords(n_steps)
+
+        prediction = self.regression.predict(coords)
+        prediction = np.reshape(prediction, (n_steps, n_steps))
+
+        inside = self.convex_hull.contains_points(coords)
+        outside = [not x for x in inside]
+
+        lowest = np.min(prediction)
+        highest = np.max(prediction)
+
+        prediction = np.reshape(prediction, n_steps**2)
+        prediction[outside] = lowest
+        prediction[prediction < lowest + 0.2*(highest-lowest)] = lowest
+        prediction = np.reshape(prediction, (n_steps, n_steps))
+
+        prediction = gaussian_filter(prediction, 1, mode='nearest')
+        prediction = prediction - np.min(prediction)
+
+        return coords, prediction
+
+
+def _distance_to_line_segment(coords, a, b):
+    coords, a, b = np.array(coords), np.array(a), np.array(b)
+    unit_vector = (b - a) / np.linalg.norm(b - a)
+    projection = np.dot(coords - a, unit_vector)
+
+    if projection < 0:
+        closest_point = a
+    elif projection > 1:
+        closest_point = b
+    else:
+        closest_point = a + projection * unit_vector
+
+    return np.linalg.norm(coords - closest_point)
+
+
+
 def fit_image(weights, positions_2d):
     """
     :param weights: connectivity weights for source voxels
     :param positions_2d: flatmap positions of source voxels
     :return: approximation of connection density on a grid
     """
+
     positions_2d = np.array(positions_2d)
 
     range_x = [np.min(positions_2d[:,0]), np.max(positions_2d[:,0])]
@@ -368,26 +600,56 @@ def find_radius(weights, positions_2d):
         return (np.sum(weights * square_distance) / total)**.5
 
 
-def flatmap_weights(positions_2d, weights):
-    rel_weights = weights / max(weights)
+def flatmap_weights(positions_2d, weights, max_weight=None):
+    if max_weight is None:
+        max_weight = max(weights)
+    rel_weights = weights / max_weight
+
     for position, rel_weight in zip(positions_2d, rel_weights):
         color = [rel_weight, 0, 1 - rel_weight, .5]
         plt.scatter(position[0], position[1], c=[color])
-    plt.xticks([]), plt.yticks([])
+    # plt.xticks([]), plt.yticks([])
 
 
 if __name__ == '__main__':
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
 
+    # t = Target('VISpor', '4', external_in_degree=1000)
+    # print('VISl2/3->VISpor4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISl2/3')))
+
+    # TODO: vast majority peak at border
+    # TODO: find multiple peaks in whole visual cortex, keep ones in source area
+    # t = Target('VISrl', '4', external_in_degree=1000)
+    # print('VISp2/3->VISrl4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISrl2/3')))
+
+    # t = Target('VISpl', '4', external_in_degree=1000)
+    # t.set_gamma()
+    # print('VISp2/3->VISpl4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
+    # print(t)
+
+    # with open('foo.pkl', 'rb') as file:
+    #     (rel_weights, positions_2d) = pickle.load(file)
+    # print(len(rel_weights))
+
     t = Target('VISpl', '4', external_in_degree=1000)
-    t.set_gamma()
-    print('VISp2/3->VISpl4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISp2/3')))
-    print(t)
+    print('{} {} voxels'.format(t.target_name, t.num_voxels))
+    t.flatmap_full_source_layer('2/3', 10)
 
-    # with open('foo.pkl', 'rb') as f:
-    #     weights, positions_2d = pickle.load(f)
+    # source_name = 'VIS2/3'
+    # positions = t.voxel_model.get_positions(source_name)  # source voxel by 3
+    # weights = t.voxel_model.get_weights(source_name, t.target_name)  # target voxel by source voxel
     #
-    # multimodal = is_multimodal(weights, positions_2d)
-    # print('multimodal={}'.format(multimodal))
+    # flatmap = FlatMap.get_instance()
+    # positions_2d = [flatmap.get_position_2d(position) for position in positions]  # source voxel by 2
+    #
+    # print(len(weights))
+    # print(len(weights[0]))
+    # print(len(positions_2d))
+    #
+    # for target_voxel in range(len(weights)):
+    #     flatmap_weights(positions_2d, weights[target_voxel])
+    #     plt.show()
 
+    #TODO: is path better than ancestors?
+    # path = vm.structure_tree.get_structures_by_id([pre_id])[0]['structure_id_path']
