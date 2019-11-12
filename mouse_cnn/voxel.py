@@ -27,66 +27,17 @@ class VoxelModel():
         self.source_mask = cache.get_source_mask()
         self.source_keys = self.source_mask.get_key(structure_ids=None)
 
+        # new version (runs slow)
+        # self.weights = cache.get_weights()
+        # self.nodes = cache.get_nodes()
+
+        # old version (runs fast)
         with open('data_files/voxel-connectivity-weights.pkl', 'rb') as file:
             self.weights = pickle.load(file)
         with open('data_files/voxel-connectivity-nodes.pkl', 'rb') as file:
             self.nodes = pickle.load(file)
 
         self.structure_tree = cache.get_structure_tree()
-
-    # def part_of_layer(self, structure_id, layer_id):
-    #     """
-    #     :param structure_id: ID of a visual structure, such as VISp2/3
-    #     :param layer_id: ID of a layer of whole visual cortex, such as VIS2/3
-    #     :return: True if the structure is part of the layer, False if it is
-    #         part of a different layer or not part of visual cortex or the
-    #         layer is not one of the visual cortex layers
-    #     """
-    #
-    #     visual_layers = [801, 561, 913, 937, 457, 497]
-    #
-    #     if layer_id not in visual_layers:
-    #         return False
-    #
-    #     structure = self.structure_tree.get_structures_by_id([structure_id])[0]['acronym']
-    #     # # get name of structure's cortical layer
-    #     # ancestors = self.structure_tree.get_ancestor_id_map()[structure_id]
-    #     # structure = self.structure_tree.get_structures_by_id([ancestors[0]])[0]['acronym']
-    #     #
-    #     structure_is_a_cortical_layer = False
-    #     for l in ['1', '2/3', '4', '5', '6a', '6b']:
-    #         if structure.endswith(l):
-    #             structure_is_a_cortical_layer = True
-    #             break
-    #
-    #     if not structure_is_a_cortical_layer:
-    #         return False
-    #
-    #     # print('{} {} {}'.format(l, structure, structure[:-len(l)]))
-    #     area = structure[:-len(l)]
-    #
-    #     # area = self.structure_tree.get_structures_by_id([ancestors[1]])[0]['acronym']
-    #     # assert structure.startswith(area), \
-    #     #     'Expected structure name {} to start with {}'.format(structure, area)
-    #     # structure_layer_name = structure[len(area):]
-    #     #
-    #     layer_name = self.structure_tree.get_structures_by_id([layer_id])[0]['acronym']
-    #     part_of_layer = l in layer_name
-    #
-    #     if not part_of_layer:
-    #         return False
-    #
-    #     visual_cortex_id = self.structure_tree.get_id_acronym_map()['VIS']
-    #     if self.structure_tree.structure_descends_from(structure_id, visual_cortex_id):
-    #         return True
-    #
-    #     # in structure_tree, VISrl is part of Posterior parietal association areas
-    #     # but we will treat it as part of visual cortex
-    #     VISrl_id = self.structure_tree.get_id_acronym_map()['VISrl']
-    #     if self.structure_tree.structure_descends_from(structure_id, VISrl_id):
-    #         return True
-    #
-    #     return False
 
     def get_weights(self, source_name, target_name):
         pre_id = self.structure_tree.get_id_acronym_map()[source_name]
@@ -245,7 +196,7 @@ class Target():
         """
         return self.get_kernel_width_mm(source) / cortical_magnification
 
-    def get_kernel_width_mm(self, source_name):
+    def get_kernel_width_mm(self, source_name, plot=False):
         """
         :param source_name: source area/layer name
         :return: sigma of Gaussian approximation of mean input kernel
@@ -259,15 +210,14 @@ class Target():
         positions_2d = [flatmap.get_position_2d(position) for position in positions] # source voxel by 2
 
         for target_voxel in range(len(weights)):
-
             source = Source(weights[target_voxel], positions_2d)
 
-            if not is_multimodal(weights[target_voxel], positions_2d):
+            if not is_multimodal_or_eccentric(weights[target_voxel], positions_2d):
                 sigmas.append(find_radius(weights[target_voxel], positions_2d))
-
-                flatmap_weights(positions_2d, weights[target_voxel])
-                plt.title('sigma: {} peak to border: {}'.format(sigmas[-1], source.peak_border_distance))
-                plt.show()
+                if plot:
+                    flatmap_weights(positions_2d, weights[target_voxel])
+                    plt.title('sigma: {} peak to border: {}'.format(sigmas[-1], source.peak_border_distance))
+                    plt.show()
 
         plt.hist(sigmas, 20)
         plt.show()
@@ -447,7 +397,6 @@ def _distance_to_line_segment(coords, a, b):
     return np.linalg.norm(coords - closest_point)
 
 
-
 def fit_image(weights, positions_2d):
     """
     :param weights: connectivity weights for source voxels
@@ -514,14 +463,14 @@ def get_multimodal_depth_fraction(image):
     return 1
 
 
-def get_fraction_peak_at_centroid(image):
+def get_fraction_peak_at_center_of_mass(image):
     image = image - np.min(image)
-    cx0, cx1 = get_centroid(image)
-    value_at_centroid = image[int(round(cx0)), int(round(cx1))]
-    return value_at_centroid / np.max(image)
+    cx0, cx1 = get_center_of_mass(image)
+    value_at_center_of_mass = image[int(round(cx0)), int(round(cx1))]
+    return value_at_center_of_mass / np.max(image)
 
 
-def get_centroid(image):
+def get_center_of_mass(image):
     X1, X0 = np.meshgrid(range(image.shape[1]), range(image.shape[0]))
     total = np.sum(image)
     cx0 = np.sum(X0 * image) / total
@@ -546,7 +495,7 @@ def get_gaussian_fit(image):
     rescaled_image = image / scale
 
     s = image.shape[0]
-    cx0, cx1 = get_centroid(image)
+    cx0, cx1 = get_center_of_mass(image)
     p0 = [np.max(rescaled_image), cx0, cx1, 3, 0, 3]
     lower_bounds = [0, 0, 0, 1, 0, 1]
     upper_bounds = [np.max(rescaled_image), s, s, s/2, s/2, s/2]
@@ -572,7 +521,7 @@ def get_gaussian_fit(image):
     return rmse
 
 
-def is_multimodal(weights, positions_2d):
+def is_multimodal_or_eccentric(weights, positions_2d):
     """
     :param weights: connectivity weights for source voxels
     :param positions_2d: flatmap positions of source voxels
@@ -582,22 +531,24 @@ def is_multimodal(weights, positions_2d):
         return False
     else:
         image = fit_image(weights, positions_2d)
-        return get_fraction_peak_at_centroid(image) < .6
+        return get_fraction_peak_at_center_of_mass(image) < .5
 
 
 def find_radius(weights, positions_2d):
-    #TODO (Stefan): deconvolve from model blur and flatmap blur
+    #TODO (Stefan): deconvolve from model blur and flatmap blur?
     positions_2d = np.array(positions_2d)
     total = sum(weights)
     if total == 0:
         return 0
     else:
-        centroid_x = np.sum(weights * positions_2d[:,0]) / total
-        centroid_y = np.sum(weights * positions_2d[:,1]) / total
-        offset_x = positions_2d[:,0] - centroid_x
-        offset_y = positions_2d[:,1] - centroid_y
+        center_of_mass_x = np.sum(weights * positions_2d[:,0]) / total
+        center_of_mass_y = np.sum(weights * positions_2d[:,1]) / total
+        offset_x = positions_2d[:,0] - center_of_mass_x
+        offset_y = positions_2d[:,1] - center_of_mass_y
         square_distance = offset_x**2 + offset_y**2
-        return (np.sum(weights * square_distance) / total)**.5
+        standard_deviation = (np.sum(weights * square_distance) / total)**.5
+        # weighted_mean_distance_from_center = np.sum(weights * np.sqrt(square_distance)) / total
+        return standard_deviation
 
 
 def flatmap_weights(positions_2d, weights, max_weight=None):
@@ -615,8 +566,8 @@ if __name__ == '__main__':
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
 
-    # t = Target('VISpor', '4', external_in_degree=1000)
-    # print('VISl2/3->VISpor4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISl2/3')))
+    t = Target('VISpor', '4', external_in_degree=1000)
+    print('VISl2/3->VISpor4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISl2/3')))
 
     # TODO: vast majority peak at border
     # TODO: find multiple peaks in whole visual cortex, keep ones in source area
@@ -632,11 +583,11 @@ if __name__ == '__main__':
     #     (rel_weights, positions_2d) = pickle.load(file)
     # print(len(rel_weights))
 
-    t = Target('VISpl', '4', external_in_degree=1000)
-    print('{} {} voxels'.format(t.target_name, t.num_voxels))
-    t.flatmap_full_source_layer('2/3', 10)
+    # t = Target('VISpl', '4', external_in_degree=1000)
+    # print('{} {} voxels'.format(t.target_name, t.num_voxels))
+    # t.flatmap_full_source_layer('2/3', 10)
 
-    # source_name = 'VIS2/3'
+    # source_name = 'VISp2/3'
     # positions = t.voxel_model.get_positions(source_name)  # source voxel by 3
     # weights = t.voxel_model.get_weights(source_name, t.target_name)  # target voxel by source voxel
     #
