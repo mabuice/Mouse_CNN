@@ -8,12 +8,10 @@ from scipy.optimize import curve_fit
 Interface to mouse data sources.
 """
 
-data_folder = 'data_files'
-
 
 class Data:
-    def __init__(self):
-        self.e18 = Ero2018()
+    def __init__(self, data_folder = 'data_files'):
+        self.e18 = Ero2018(data_folder)
         self.p11 = Perin11()
         self.b19 = Billeh19()
 
@@ -112,7 +110,7 @@ class Ero2018:
     Frontiers in Neuroinformatics, 13, 7.
     """
 
-    def __init__(self):
+    def __init__(self, data_folder):
         file_name = data_folder + '/Data_Sheet_1_A Cell Atlas for the Mouse Brain.CSV'
 
         if not os.path.isfile(file_name):

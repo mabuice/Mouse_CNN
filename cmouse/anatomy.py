@@ -6,8 +6,12 @@ sys.path.append('../')
 from mouse_cnn.data import *
 
 class AugData(Data):
+    def __init__(self, data_folder='./data_files'):
+        super(AugData, self).__init__(data_folder=data_folder)
+    def get_kernel_height(self, source_area, source_layer, target_area, target_layer):
+        return 1
     def get_kernel_width(self, source_area, source_layer, target_area, target_layer):
-        return 1000
+        return 3
 
 class AnatomicalLayer:
     def __init__(self, area, depth, num):
@@ -24,19 +28,18 @@ class Projection:
         self.post = post
 
 class LaminarProjection(Projection):
-    def __init__(self, pre, post, vp, vw):
+    def __init__(self, pre, post, gsh, gsw):
         assert(pre.area == post.area)
         Projection.__init__(self, pre, post)
-        self.vp = vp
-        self.vw = vw
+        self.gsh = gsh
+        self.gsw = gsw
 
 class AreaProjection(Projection):
-    def __init__(self, pre, post, dp, dw):
+    def __init__(self, pre, post, gsh, gsw):
         assert(pre.area != post.area)
         Projection.__init__(self, pre, post)
-        self.dp = dp
-        self.dw = dw
-
+        self.gsh = gsh
+        self.gsw = gsw
 class AnatomicalNet:
     def __init__(self):
         self.layers = []
@@ -133,7 +136,7 @@ def gen_anatomy(input_depths = ['4'],
                 for depth in depths:
                     if depth in input_depths:
                         for l in output_map[hierarchy-1]:
-                            e = data.get_extrinsic_in_degree(area, depth)
+                            e = data.get_kernel_height(l.area, l.depth, area, depth)
                             w = data.get_kernel_width(l.area, l.depth, area, depth)
                             anet.add_projection(AreaProjection(l, area_layers[depth], e, w))
     return anet
