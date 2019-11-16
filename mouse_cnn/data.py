@@ -66,23 +66,6 @@ class Data:
         """
         return 1000 #TODO: replace with real estimate
 
-    def get_kernel_width(self, source_area, source_layer, target_area, target_layer):
-        """
-        Kernel width associated with an inter-area connection, estimated from voxel model.
-
-        :param source_area: name of source visual area (e.g. 'VISp')
-        :param source_layer: name of source layer (e.g. '2/3)
-        :param target_area: name of target visual area (e.g. 'VISrl')
-        :param target_layer: name of target layer (e.g. '4')
-        :return: kernel width (micrometers)
-        """
-        # TODO: this is here due to a circular dependence between data and voxel (whoops)
-        # TODO: consider removing this method; it just wraps target.get_kernel_width
-        from mouse_cnn.voxel import Target
-        target = Target(target_area, target_layer,
-                        external_in_degree=self.get_extrinsic_in_degree(target_area, target_layer))
-        return 1000 * target.get_kernel_width_mm(source_area+source_layer)
-
     def get_hit_rate_peak(self, source_layer, target_layer):
         """
         :param source_layer: name of presynaptic layer
@@ -102,6 +85,17 @@ class Data:
             functional connection in this direction
         """
         return self.p11.width_micrometers
+
+    def get_visual_field_shape(self, area):
+        """
+        :param area: visual area name
+        :return: (height, width) of visual field for that area
+        """
+        # We return a constant for simplicity. This is based on the range of the scale
+        # bars in Figure 9C,D of ﻿J. Zhuang et al., “An extended retinotopic map of mouse cortex,”
+        # Elife, p. e18372, 2017. In fact different areas have different visual field shapes and
+        # offsets, but we defer this aspect to future models.
+        return (55, 90)
 
 
 class Ero2018:

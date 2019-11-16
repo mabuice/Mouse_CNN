@@ -162,39 +162,13 @@ class Target():
         index = self.source_names.index(source_name)
         return self.mean_totals[index] * self.gamma
 
-    def get_peak_connection_probability(self, source_name, cortical_magnification, beta, c_out):
-        """
-        TODO: maybe this method belongs somewhere else as it's network-centric.
-
-        :param source_name: source area/layer name
-        :param cortical_magnification: mm cortex per degree visual angle
-        :param beta: degrees visual angle per pixel of source feature map
-        :param c_out: number of feature maps in source
-        :return: hit rate at centre of kernel
-        """
-        e_ij = self.get_n_external_inputs_for_source(source_name)
-        d_w = self.get_kernel_width_pixels(source_name, cortical_magnification, beta)
-        d_p = e_ij / (c_out * 2*np.pi * d_w**2)
-        return d_p
-
-    def get_kernel_width_pixels(self, source_name, cortical_magnification, beta):
-        """
-        TODO: maybe this method belongs somewhere else as it's network-centric.
-
-        :param source_name: source area/layer name
-        :param cortical_magnification: mm cortex per degree visual angle
-        :param beta: degrees visual angle per pixel of source feature map
-        :return: width (sigma) of Gaussian kernel approximation in feature-map pixels
-        """
-        return self.get_kernel_width_degrees(source_name, cortical_magnification) / beta
-
-    def get_kernel_width_degrees(self, source, cortical_magnification):
-        """
-        :param source: source area/layer name
-        :param cortical_magnification: mm cortex per degree visual angle
-        :return: width (sigma) of Gaussian kernel approximation in degrees visual angle
-        """
-        return self.get_kernel_width_mm(source) / cortical_magnification
+    # def get_kernel_width_degrees(self, source, cortical_magnification):
+    #     """
+    #     :param source: source area/layer name
+    #     :param cortical_magnification: mm cortex per degree visual angle
+    #     :return: width (sigma) of Gaussian kernel approximation in degrees visual angle
+    #     """
+    #     return self.get_kernel_width_mm(source) / cortical_magnification
 
     def get_kernel_width_mm(self, source_name, plot=False):
         """
@@ -277,6 +251,18 @@ class Target():
                 result += '\n{} mean-total weight: {:.3}  external inputs: {:.4}'.format(
                     source, mean_total, self.get_n_external_inputs_for_source(source))
         return result
+
+
+def get_surface_area_mm2(source_name):
+    voxel_model = VoxelModel.get_instance()
+    positions = voxel_model.get_positions(source_name)  # source voxel by 3
+
+    flatmap = FlatMap.get_instance()
+    positions_2d = [flatmap.get_position_2d(position) for position in positions]  # source voxel by 2
+    positions_2d = np.array(positions_2d)
+
+    hull = ConvexHull(positions_2d)
+    return hull.volume #hull.area returns the circumference rather than the area
 
 
 class Source:
@@ -539,7 +525,7 @@ def find_radius(weights, positions_2d):
     positions_2d = np.array(positions_2d)
     total = sum(weights)
     if total == 0:
-        return 0
+        return 0, 0
     else:
         center_of_mass_x = np.sum(weights * positions_2d[:,0]) / total
         center_of_mass_y = np.sum(weights * positions_2d[:,1]) / total
@@ -548,7 +534,7 @@ def find_radius(weights, positions_2d):
         square_distance = offset_x**2 + offset_y**2
         standard_deviation = (np.sum(weights * square_distance) / total)**.5
         # weighted_mean_distance_from_center = np.sum(weights * np.sqrt(square_distance)) / total
-        return standard_deviation
+        return standard_deviation, total
 
 
 def flatmap_weights(positions_2d, weights, max_weight=None):
@@ -563,11 +549,13 @@ def flatmap_weights(positions_2d, weights, max_weight=None):
 
 
 if __name__ == '__main__':
+    print(get_surface_area_mm2('VISal2/3'))
+
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
 
-    t = Target('VISpor', '4', external_in_degree=1000)
-    print('VISl2/3->VISpor4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISl2/3')))
+    # t = Target('VISpor', '4', external_in_degree=1000)
+    # print('VISl2/3->VISpor4 kernel width estimate: {}'.format(t.get_kernel_width_mm('VISl2/3')))
 
     # TODO: vast majority peak at border
     # TODO: find multiple peaks in whole visual cortex, keep ones in source area
