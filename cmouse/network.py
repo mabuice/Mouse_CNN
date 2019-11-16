@@ -7,15 +7,12 @@ from torch import nn
 from config import *
 
 class ConvParam:
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 stride=1, padding=0, dilation=1, groups=1):
+    def __init__(self, in_channels, out_channels, gsh, gsw):
         self.in_channels = int(in_channels)
         self.out_channels = int(out_channels)
-        self.kernel_size = int(kernel_size)
-        self.stride = int(stride)
-        self.padding = int(padding)
-        self.dilation = int(dilation)
-        self.groups = int(groups)
+        self.gsh = gsh
+        self.gsw = gsw
+        self.kernel_size = int(2 * self.gsw * EDGE_Z + 1)
 
 class ConvLayer:
     def __init__(self, source_name, target_name, params, out_size, out_sigma):
@@ -24,6 +21,7 @@ class ConvLayer:
         self.target_name = target_name
         self.out_size = out_size
         self.out_sigma = out_sigma
+
 
 class Network:
     """
@@ -49,7 +47,12 @@ class Network:
         LGNv_out = np.floor(anet.find_layer('LGNv','').num/INPUT_SIZE[0]/INPUT_SIZE[1]/INPUT_SIZE[2])
         out_size =  INPUT_SIZE[1]*anet.find_layer('LGNv','').sigma
         out_sigma = anet.find_layer('LGNv','').sigma
-        convlayer = ConvLayer('input', 'LGNv', ConvParam(in_channels=INPUT_SIZE[0], out_channels=LGNv_out),
+       
+        convlayer = ConvLayer('input', 'LGNv', 
+                              ConvParam(in_channels=INPUT_SIZE[0], 
+                                        out_channels=LGNv_out,
+                                        gsh=INPUT_GSH,
+                                        gsw=INPUT_GSW),
                               out_size, out_sigma)
         self.layers.append(convlayer)
        
@@ -71,8 +74,14 @@ class Network:
             out_sigma = out_anat_layer.sigma
             out_channels = np.floor(out_anat_layer.num/out_size**2)
             
+            proj = anet.find_projection(e[0].area, e[0].depth, e[1].area, e[1].depth)
+            
             convlayer = ConvLayer(in_layer_name, out_layer_name, 
-                                  ConvParam(in_channels=in_channels, out_channels=out_channels), out_size, out_sigma)
+                                  ConvParam(in_channels=in_channels, 
+                                            out_channels=out_channels,
+                                            gsh=proj.gsh,
+                                            gsw=proj.gsw), 
+                                  out_size, out_sigma)
             self.layers.append(convlayer)
             
     def make_graph(self):
@@ -95,6 +104,35 @@ class Network:
 
 
 
+
+class Conv2dMask(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, stride=1, padding=0):
+        super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, 
+                                         stride=stride, padding=padding)
+        self.mask = torch.Tensor(self.make_gaussian_kernel_mask(gsh, gsw))
+        
+    def forward(self, input):
+        return super(Conv2dMask, self).conv2d_forward(input, self.weight*self.mask)
+
+    def make_gaussian_kernel_mask(self, peak, sigma):
+        """
+        :param peak: peak probability of non-zero weight (at kernel center)
+        :param sigma: standard deviation of Gaussian probability (kernel pixels)
+        :param edge_z: Z-score (# standard deviations) of edge of kernel
+        :return: mask in shape of kernel with True wherever kernel entry is non-zero
+        """
+        width = int(sigma*EDGE_Z)
+
+        x = np.arange(-width, width+1)
+        X, Y = np.meshgrid(x, x)
+        radius = np.sqrt(X**2 + Y**2)
+
+        probability = peak * np.exp(-radius**2/2/sigma**2)
+        return np.random.rand(len(x), len(x)) < probability
+
+
+
+
 class MouseNet(nn.Module):
     """
     torch model constructed by parameters provided in network.
@@ -112,9 +150,11 @@ class MouseNet(nn.Module):
         for e in self.edge_bfs:
             layer = network.find_conv_source_target(e[0], e[1])
             params = layer.params
-            padding = int(((layer.out_sigma*params.stride-1)*layer.out_size/layer.out_sigma+params.kernel_size-params.stride)/2)
-            self.Convs[e[0]+e[1]] = nn.Conv2d(params.in_channels, params.out_channels, params.kernel_size,
-                                                    padding=padding)
+            padding = int((params.kernel_size-1/layer.out_sigma)/2)
+           
+            self.Convs[e[0]+e[1]] = Conv2dMask(params.in_channels, params.out_channels, params.kernel_size,
+                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), padding=padding)
+
         final_layer = network.find_conv_source_target('VISpor2/3','VISpor5') 
         final_size = final_layer.out_size
         final_channels = final_layer.params.out_channels
