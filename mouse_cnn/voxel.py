@@ -193,8 +193,9 @@ class Target():
                     plt.title('sigma: {} peak to border: {}'.format(sigmas[-1], source.peak_border_distance))
                     plt.show()
 
-        plt.hist(sigmas, 20)
-        plt.show()
+        # plt.hist(sigmas, 20)
+        # plt.xlabel('sigma'), plt.ylabel('count')
+        # plt.show()
 
         return np.mean(sigmas)
 
