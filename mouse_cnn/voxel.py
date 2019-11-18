@@ -550,7 +550,8 @@ def flatmap_weights(positions_2d, weights, max_weight=None):
 
 
 if __name__ == '__main__':
-    print(get_surface_area_mm2('VISal2/3'))
+    for area in ['VISl', 'VISrl', 'VISli', 'VISpor']:
+        print('\'{}\': {},'.format(area, get_surface_area_mm2(area+'2/3')))
 
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')

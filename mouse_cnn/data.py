@@ -50,8 +50,20 @@ class Data:
         #TODO: compare with other estimates
 
         if area in ['VISrl', 'VISli', 'VISpor']:
-            # TODO: Ero et al. doesn't include these estimates
-            return 100000
+            # Ero et al. doesn't include these estimates, so we approximate from
+            # density of VISl. Specifically we multiply the estimate from VISl by
+            # the ratio of surface areas of L2/3. Surface areas estimated from
+            # convex hull of flat map of voxels.
+
+            surface_areas_23 = {
+                'VISl': 0.9279064282165419,
+                'VISrl': 0.698045549856564,
+                'VISli': 0.43560916751267514,
+                'VISpor': 1.3936554078054724
+            }
+
+            ratio = surface_areas_23[area] / surface_areas_23['VISl']
+            return self.e18.get_n_excitatory('VISl', layer) * ratio
 
         return self.e18.get_n_excitatory(area, layer)
 
@@ -231,6 +243,13 @@ def check_all_kernels():
 
 
 if __name__ == '__main__':
-    check_all_kernels()
+    data = Data()
+    for area in ['VISrl', 'VISli', 'VISpor']:
+        print(area)
+        print(data.get_num_neurons(area, '2/3'))
+        print(data.get_num_neurons(area, '4'))
+        print(data.get_num_neurons(area, '5'))
+
+    # check_all_kernels()
     # data = Data()
     # print(data.get_kernel_width('VISp', '2/3', 'VISrl', '4'))
