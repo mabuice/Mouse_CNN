@@ -43,26 +43,32 @@ class Network:
         assert('no conv layer found!')
         
     def construct_from_anatomy(self, anet):
+        print('11')
         # construct conv layer for input -> LGNv
-        LGNv_out = np.floor(anet.find_layer('LGNv','').num/INPUT_SIZE[0]/INPUT_SIZE[1]/INPUT_SIZE[2])
-        out_size =  INPUT_SIZE[1]*anet.find_layer('LGNv','').sigma
         out_sigma = anet.find_layer('LGNv','').sigma
-       
+        out_channels = np.floor(anet.find_layer('LGNv','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
+        anet.data.set_num_channels('LGNv', '', out_channels)
+        out_size =  INPUT_SIZE[1]*anet.find_layer('LGNv','').sigma
+        
         convlayer = ConvLayer('input', 'LGNv', 
                               ConvParam(in_channels=INPUT_SIZE[0], 
-                                        out_channels=LGNv_out,
+                                        out_channels=out_channels,
                                         gsh=INPUT_GSH,
                                         gsw=INPUT_GSW),
                               out_size, out_sigma)
         self.layers.append(convlayer)
+        
+        print('22')
        
         # construct conv layers for all other connections
         G, _ = anet.make_graph()
         Gtop = nx.topological_sort(G)
         root = next(Gtop) # get root of graph
         for i, e in enumerate(nx.edge_bfs(G, root)):
+            
             in_layer_name = e[0].area+e[0].depth
             out_layer_name = e[1].area+e[1].depth
+            print('constructing layer %s: %s to %s'%(i, in_layer_name, out_layer_name))
             
             in_conv_layer = self.find_conv_target_area(in_layer_name)
             in_size = in_conv_layer.out_size
@@ -74,14 +80,15 @@ class Network:
             out_sigma = out_anat_layer.sigma
             out_channels = np.floor(out_anat_layer.num/out_size**2)
             
-            proj = anet.find_projection(e[0].area, e[0].depth, e[1].area, e[1].depth)
+            anet.data.set_num_channels(e[1].area, e[1].depth, out_channels)
             
             convlayer = ConvLayer(in_layer_name, out_layer_name, 
                                   ConvParam(in_channels=in_channels, 
                                             out_channels=out_channels,
-                                            gsh=proj.gsh,
-                                            gsw=proj.gsw), 
-                                  out_size, out_sigma)
+                                        gsh=anet.data.get_kernel_peak_probability(e[0].area, e[0].depth, e[1].area, e[1].depth),
+                                        gsw=anet.data.get_kernel_width_pixels(e[0].area, e[0].depth, e[1].area, e[1].depth)),
+                                    out_size, out_sigma)
+            
             self.layers.append(convlayer)
             
     def make_graph(self):
@@ -94,7 +101,7 @@ class Network:
 
     def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
         G, node_label_dict = self.make_graph()
-        edge_label_dict = {(c.source_name, c.target_name):(c.params.in_channels, c.params.out_channels) for c in self.layers}
+        edge_label_dict = {(c.source_name, c.target_name):(c.params.in_channels, c.params.out_channels, c.params.kernel_size) for c in self.layers}
         plt.figure(figsize=(14,20))
         pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
         nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color,alpha=0.5)

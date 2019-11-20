@@ -13,9 +13,9 @@ class Architecture(Data):
     width estimates in micrometers to kernel width estimates in pixels.
     """
 
-    def __init__(self):
-        super(Architecture, self).__init__()
-        self.targets = _get_targets(self)
+    def __init__(self, data_folder='data_files'):
+        super(Architecture, self).__init__(data_folder=data_folder)
+        self.targets = _get_targets(self, data_folder=data_folder)
         self.channels = {}
 
     def set_num_channels(self, area, layer, channels):
@@ -72,14 +72,14 @@ def _get_name(area, layer):
     return area + layer
 
 
-def _get_targets(data):
+def _get_targets(data, data_folder='data_files/'):
     # build dictionary of voxel.Target instances per target layer
     targets = {}
     for area in data.get_areas():
         if data.get_hierarchical_level(area) > 0:
             for layer in data.get_layers():
                 in_degree = data.get_extrinsic_in_degree(area, layer)
-                targets[_get_name(area, layer)] = Target(area, layer, external_in_degree=in_degree)
+                targets[_get_name(area, layer)] = Target(area, layer, external_in_degree=in_degree, data_folder=data_folder)
     return targets
 
 

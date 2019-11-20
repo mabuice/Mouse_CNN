@@ -22,7 +22,7 @@ class VoxelModel():
     # but it takes several seconds to instantiate, so we only want to do it once
     _instance = None
 
-    def __init__(self):
+    def __init__(self, data_folder='data_files/'):
         cache = VoxelModelCache(manifest_file='connectivity/voxel_model_manifest.json')
         self.source_mask = cache.get_source_mask()
         self.source_keys = self.source_mask.get_key(structure_ids=None)
@@ -32,9 +32,9 @@ class VoxelModel():
         # self.nodes = cache.get_nodes()
 
         # old version (runs fast)
-        with open('data_files/voxel-connectivity-weights.pkl', 'rb') as file:
+        with open(data_folder + '/voxel-connectivity-weights.pkl', 'rb') as file:
             self.weights = pickle.load(file)
-        with open('data_files/voxel-connectivity-nodes.pkl', 'rb') as file:
+        with open(data_folder + '/voxel-connectivity-nodes.pkl', 'rb') as file:
             self.nodes = pickle.load(file)
 
         self.structure_tree = cache.get_structure_tree()
@@ -70,12 +70,12 @@ class VoxelModel():
         return pre_positions
 
     @staticmethod
-    def get_instance():
+    def get_instance(data_folder='data_files/'):
         """
         :return: Shared instance of VoxelModel
         """
         if VoxelModel._instance is None:
-            VoxelModel._instance = VoxelModel()
+            VoxelModel._instance = VoxelModel(data_folder=data_folder)
         return VoxelModel._instance
 
 
@@ -97,18 +97,19 @@ class Target():
     be true either, but it allows us to estimate numbers of connections from voxel weights.
     """
 
-    def __init__(self, area, layer, external_in_degree):
+    def __init__(self, area, layer, external_in_degree, data_folder='data_files/'):
         """
         :param area: name of area
         :param layer: name of layer
         :param external_in_degree: Total neurons providing feedforward input to average
             neuron, from other cortical areas.
         """
+        self.data_folder=data_folder
         self.target_area = area
         self.target_name = area + layer
         self.e = external_in_degree
 
-        self.voxel_model = VoxelModel.get_instance()
+        self.voxel_model = VoxelModel.get_instance(data_folder=data_folder)
         self.num_voxels = len(self.voxel_model.get_positions(self.target_name))
 
         self.gamma = None # scale factor for total inbound voxel weight -> extrinsic in-degree
@@ -122,7 +123,7 @@ class Target():
             including only lower areas in the visual hierarchy
         """
         self.source_names = []
-        data = Data()
+        data = Data(data_folder=self.data_folder)
         for area in data.get_areas():
             if data.get_hierarchical_level(area) < data.get_hierarchical_level(self.target_area):
                 if 'LGN' not in area: #TODO: handle LGN->VISp as special case

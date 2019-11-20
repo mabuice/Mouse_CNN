@@ -7,13 +7,22 @@ import torch.nn as nn
 from anatomy import *
 from network import *
 
+class GBChannels():
+    def __call__(self, tensor):
+        return tensor[1:3,:,:]
+
 # prepare for data
 transform = transforms.Compose([transforms.ToTensor(),
-              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                GBChannels(),
+                                transforms.Normalize((0.5, 0.5),(0.5, 0.5))])
+
+# prepare for data
+#transform = transforms.Compose([transforms.ToTensor(),
+#              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=1,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
@@ -26,7 +35,7 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=128,
 
 
 # construct mouse CNN
-anet = gen_anatomy(data_folder='./data_files')
+anet = gen_anatomy(data_folder='./data')
 net = Network()
 net.construct_from_anatomy(anet)
 mousenet = MouseNet(net)
@@ -44,6 +53,7 @@ mousenet.to(device)
 for epoch in range(40):  # loop over the dataset multiple times
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
+        print(i)
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data[0].to(device), data[1].to(device)
         # zero the parameter gradients

@@ -3,15 +3,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import sys
 sys.path.append('../')
-from mouse_cnn.data import *
+from mouse_cnn.architecture import *
 
-class AugData(Data):
-    def __init__(self, data_folder='./data_files'):
-        super(AugData, self).__init__(data_folder=data_folder)
-    def get_kernel_height(self, source_area, source_layer, target_area, target_layer):
-        return 1
-    def get_kernel_width(self, source_area, source_layer, target_area, target_layer):
-        return 3
 
 class AnatomicalLayer:
     def __init__(self, area, depth, num):
@@ -27,21 +20,9 @@ class Projection:
         self.pre = pre
         self.post = post
 
-class LaminarProjection(Projection):
-    def __init__(self, pre, post, gsh, gsw):
-        assert(pre.area == post.area)
-        Projection.__init__(self, pre, post)
-        self.gsh = gsh
-        self.gsw = gsw
-
-class AreaProjection(Projection):
-    def __init__(self, pre, post, gsh, gsw):
-        assert(pre.area != post.area)
-        Projection.__init__(self, pre, post)
-        self.gsh = gsh
-        self.gsw = gsw
 class AnatomicalNet:
-    def __init__(self):
+    def __init__(self, data):
+        self.data = data
         self.layers = []
         self.projections = []
 
@@ -95,13 +76,13 @@ class AnatomicalNet:
 
 def gen_anatomy(input_depths = ['4'],
             output_depths = ['2/3', '5'],
-            lamimar_connections = [('4', '2/3'), ('2/3', '5')],
-            data_folder = '../data_files'):
+            laminar_connections = [('4', '2/3'), ('2/3', '5')],
+            data_folder = '../data'):
     """
     generate anatomy structure from data class
     """
-    anet = AnatomicalNet()
-    data = AugData(data_folder=data_folder)
+    data = Architecture(data_folder=data_folder)
+    anet = AnatomicalNet(data)
     areas = data.get_areas()
     depths = data.get_layers()
     output_map = {} # collect output layers for each hierarchy
@@ -127,16 +108,12 @@ def gen_anatomy(input_depths = ['4'],
                         output_map[hierarchy].append(layer)
 
                 # add LaminarProjection
-                for source, target in lamimar_connections:
-                    p = data.get_hit_rate_peak(source, target)
-                    w = data.get_hit_rate_width(source, target)
-                    anet.add_projection(LaminarProjection(area_layers[source], area_layers[target], p, w))
+                for source, target in laminar_connections:
+                    anet.add_projection(Projection(area_layers[source], area_layers[target]))
 
                 # add AreaProjection
                 for depth in depths:
                     if depth in input_depths:
                         for l in output_map[hierarchy-1]:
-                            e = data.get_kernel_height(l.area, l.depth, area, depth)
-                            w = data.get_kernel_width(l.area, l.depth, area, depth)
-                            anet.add_projection(AreaProjection(l, area_layers[depth], e, w))
+                            anet.add_projection(Projection(l, area_layers[depth]))
     return anet
