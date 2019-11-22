@@ -12,7 +12,7 @@ class ConvParam:
         self.out_channels = int(out_channels)
         self.gsh = gsh
         self.gsw = gsw
-        self.kernel_size = int(2 * self.gsw * EDGE_Z + 1)
+        self.kernel_size = 2*int(self.gsw * EDGE_Z) + 1
 
 class ConvLayer:
     def __init__(self, source_name, target_name, params, out_size, out_sigma):
@@ -29,6 +29,8 @@ class Network:
     """
     def __init__(self):
         self.layers = []
+        self.area_channels = {}
+        self.area_size = {}
         
     def find_conv_source_target(self, source_name, target_name):
         for layer in self.layers:
@@ -43,12 +45,17 @@ class Network:
         assert('no conv layer found!')
         
     def construct_from_anatomy(self, anet):
-        print('11')
         # construct conv layer for input -> LGNv
+        self.area_channels['input'] = INPUT_SIZE[0]
+        self.area_size['input'] = INPUT_SIZE[1]
+        
         out_sigma = anet.find_layer('LGNv','').sigma
         out_channels = np.floor(anet.find_layer('LGNv','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
         anet.data.set_num_channels('LGNv', '', out_channels)
-        out_size =  INPUT_SIZE[1]*anet.find_layer('LGNv','').sigma
+        self.area_channels['LGNv'] = out_channels
+        
+        out_size =  INPUT_SIZE[1] * out_sigma
+        self.area_size['LGNv'] = out_size
         
         convlayer = ConvLayer('input', 'LGNv', 
                               ConvParam(in_channels=INPUT_SIZE[0], 
@@ -57,8 +64,6 @@ class Network:
                                         gsw=INPUT_GSW),
                               out_size, out_sigma)
         self.layers.append(convlayer)
-        
-        print('22')
        
         # construct conv layers for all other connections
         G, _ = anet.make_graph()
@@ -76,11 +81,14 @@ class Network:
             
             out_anat_layer = anet.find_layer(e[1].area, e[1].depth)
             
-            out_size = in_size * out_anat_layer.sigma
+           
             out_sigma = out_anat_layer.sigma
+            out_size = in_size * out_sigma
+            self.area_size[e[1].area+e[1].depth] = out_size
             out_channels = np.floor(out_anat_layer.num/out_size**2)
             
             anet.data.set_num_channels(e[1].area, e[1].depth, out_channels)
+            self.area_channels[e[1].area+e[1].depth] = out_channels
             
             convlayer = ConvLayer(in_layer_name, out_layer_name, 
                                   ConvParam(in_channels=in_channels, 
@@ -96,12 +104,12 @@ class Network:
         edges = [(p.source_name, p.target_name) for p in self.layers]
         for edge in edges:
             G.add_edge(edge[0], edge[1])
-        node_label_dict = { layer:layer for layer in G.nodes()}
+        node_label_dict = { layer:(layer, self.area_size[layer], int(self.area_channels[layer])) for layer in G.nodes()}
         return G, node_label_dict
 
     def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
         G, node_label_dict = self.make_graph()
-        edge_label_dict = {(c.source_name, c.target_name):(c.params.in_channels, c.params.out_channels, c.params.kernel_size) for c in self.layers}
+        edge_label_dict = {(c.source_name, c.target_name):(c.params.kernel_size) for c in self.layers}
         plt.figure(figsize=(14,20))
         pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
         nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color,alpha=0.5)
@@ -113,14 +121,18 @@ class Network:
 
 
 class Conv2dMask(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, stride=1, padding=0):
-        super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, 
-                                         stride=stride, padding=padding)
-        self.mask = torch.Tensor(self.make_gaussian_kernel_mask(gsh, gsw))
-        
+    def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, mask=1, stride=1, padding=0):
+        super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        if mask:
+            self.mask = nn.Parameter(torch.Tensor(self.make_gaussian_kernel_mask(gsh, gsw)))
+        else:
+            self.mask = None
     def forward(self, input):
-        return super(Conv2dMask, self).conv2d_forward(input, self.weight*self.mask)
-
+        if self.mask:
+            return super(Conv2dMask, self).conv2d_forward(input, self.weight*self.mask)
+        else:
+            return super(Conv2dMask, self).conv2d_forward(input, self.weight)
+            
     def make_gaussian_kernel_mask(self, peak, sigma):
         """
         :param peak: peak probability of non-zero weight (at kernel center)
@@ -139,12 +151,11 @@ class Conv2dMask(nn.Conv2d):
 
 
 
-
 class MouseNet(nn.Module):
     """
     torch model constructed by parameters provided in network.
     """
-    def __init__(self, network):
+    def __init__(self, network, mask=1):
         super(MouseNet, self).__init__()
         self.Convs = nn.ModuleDict()
         self.network = network
@@ -160,9 +171,9 @@ class MouseNet(nn.Module):
             padding = int((params.kernel_size-1/layer.out_sigma)/2)
            
             self.Convs[e[0]+e[1]] = Conv2dMask(params.in_channels, params.out_channels, params.kernel_size,
-                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), padding=padding)
+                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), padding=padding, mask=mask)
 
-        final_layer = network.find_conv_source_target('VISpor2/3','VISpor5') 
+        final_layer = network.find_conv_source_target('%s2/3'%OUTPUT_AREA,'%s5'%OUTPUT_AREA)
         final_size = final_layer.out_size
         final_channels = final_layer.params.out_channels
         self.classifier = nn.Sequential(
@@ -185,8 +196,20 @@ class MouseNet(nn.Module):
                     calc_graph[e[1]] = calc_graph[e[1]] + self.Convs[e[0]+e[1]](calc_graph[e[0]])
                 else:
                     calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
-
-        x = torch.flatten(calc_graph['VISpor5'], 1)
+        x = torch.flatten(calc_graph['%s5'%OUTPUT_AREA], 1)
         x = self.classifier(x)
         return x
                 
+    def _initialize_weights(self):
+           for m in self.modules():
+               if isinstance(m, nn.Conv2d):
+                   nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                   if m.bias is not None:
+                       nn.init.constant_(m.bias, 0)
+               elif isinstance(m, nn.BatchNorm2d):
+                   nn.init.constant_(m.weight, 1)
+                   nn.init.constant_(m.bias, 0)
+               elif isinstance(m, nn.Linear):
+                   nn.init.normal_(m.weight, 0, 0.01)
+                   nn.init.constant_(m.bias, 0)
+
