@@ -94,7 +94,23 @@ class Data:
         :return: width of Gaussian approximation of fraction of excitatory neuron pairs with
             functional connection in this direction
         """
-        return self.p11.width_micrometers
+
+        # Levy & Reyes (2012; J Neurosci) report sigma 114 micrometers for probability of
+        # functional connection between pairs of L4 pyramidal cells in mouse auditory cortex.
+        # See their Table 3.
+        l4_to_l4 = 114
+
+        # Stepanyants, Hirsch, Martinez (2008; Cerebral Cortex) report variations in width
+        # of potential connection probability depending on source and target layer in cat V1.
+        # See their Figure 8B. Values below are rough manual estimates from their figure.
+        cat = { # source -> target
+            '2/3': {'2/3': 225, '4': 50, '5': 100, '6': 50},
+            '4': {'2/3': 220, '4': 180, '5': 140, '6': 110},
+            '5': {'2/3': 150, '4': 100, '5': 210, '6': 125},
+            '6': {'2/3': 120, '4': 20, '5': 150, '6': 150}
+        }
+
+        return cat[source_layer][target_layer] / cat['4']['4'] * l4_to_l4
 
     def get_visual_field_shape(self, area):
         """
@@ -244,11 +260,17 @@ def check_all_kernels():
 
 if __name__ == '__main__':
     data = Data()
-    for area in ['VISrl', 'VISli', 'VISpor']:
-        print(area)
-        print(data.get_num_neurons(area, '2/3'))
-        print(data.get_num_neurons(area, '4'))
-        print(data.get_num_neurons(area, '5'))
+    # print((data.get_num_neurons('VISp', '4')/37)**.5)
+    print(data.get_hit_rate_width('4', '4'))
+    print(data.get_hit_rate_width('4', '2/3'))
+    print(data.get_hit_rate_width('2/3', '5'))
+
+
+    # for area in ['VISrl', 'VISli', 'VISpor']:
+    #     print(area)
+    #     print(data.get_num_neurons(area, '2/3'))
+    #     print(data.get_num_neurons(area, '4'))
+    #     print(data.get_num_neurons(area, '5'))
 
     # check_all_kernels()
     # data = Data()
