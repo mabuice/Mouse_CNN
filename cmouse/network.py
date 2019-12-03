@@ -122,16 +122,17 @@ class Network:
 
 class Conv2dMask(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, mask=1, stride=1, padding=0):
-        super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, stride=stride)
+        self.mypadding = nn.ConstantPad2d(padding, 0)
         if mask:
             self.mask = nn.Parameter(torch.Tensor(self.make_gaussian_kernel_mask(gsh, gsw)))
         else:
             self.mask = None
     def forward(self, input):
         if self.mask:
-            return super(Conv2dMask, self).conv2d_forward(input, self.weight*self.mask)
+            return super(Conv2dMask, self).conv2d_forward(self.mypadding(input), self.weight*self.mask)
         else:
-            return super(Conv2dMask, self).conv2d_forward(input, self.weight)
+            return super(Conv2dMask, self).conv2d_forward(self.mypadding(input), self.weight)
             
     def make_gaussian_kernel_mask(self, peak, sigma):
         """
@@ -168,16 +169,20 @@ class MouseNet(nn.Module):
         for e in self.edge_bfs:
             layer = network.find_conv_source_target(e[0], e[1])
             params = layer.params
-            padding = int((params.kernel_size-1/layer.out_sigma)/2)
-           
+
+            KmS = int((params.kernel_size-1/layer.out_sigma))
+            if np.mod(KmS,2)==0:
+                padding = int(KmS/2)
+            else:
+                padding = (int(KmS/2), int(KmS/2+1), int(KmS/2), int(KmS/2+1))
             self.Convs[e[0]+e[1]] = Conv2dMask(params.in_channels, params.out_channels, params.kernel_size,
-                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), padding=padding, mask=mask)
+                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), mask=mask, padding=padding)
 
         final_layer = network.find_conv_source_target('%s2/3'%OUTPUT_AREA,'%s5'%OUTPUT_AREA)
         final_size = final_layer.out_size
         final_channels = final_layer.params.out_channels
         self.classifier = nn.Sequential(
-            nn.Linear(final_channels * final_size * final_size, HIDDEN_LINEAR),
+            nn.Linear(int(final_channels * final_size * final_size), HIDDEN_LINEAR),
             nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(HIDDEN_LINEAR, HIDDEN_LINEAR),
