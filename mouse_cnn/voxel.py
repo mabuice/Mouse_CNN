@@ -170,14 +170,6 @@ class Target():
         index = self.source_names.index(source_name)
         return self.mean_totals[index] * self.gamma
 
-    # def get_kernel_width_degrees(self, source, cortical_magnification):
-    #     """
-    #     :param source: source area/layer name
-    #     :param cortical_magnification: mm cortex per degree visual angle
-    #     :return: width (sigma) of Gaussian kernel approximation in degrees visual angle
-    #     """
-    #     return self.get_kernel_width_mm(source) / cortical_magnification
-
     def get_kernel_width_mm(self, source_name, plot=False, save=False):
         """
         :param source_name: source area/layer name
@@ -206,11 +198,6 @@ class Target():
                     else:
                         plt.show()
 
-        # plt.hist(sigmas, 20)
-        # plt.xlabel('sigma'), plt.ylabel('count')
-        # plt.show()
-
-        # print(np.mean(sigmas))
         return np.mean(sigmas)
 
     def flatmap_full_source_layer(self, layer, target_voxel):
@@ -298,8 +285,6 @@ class Source:
         self.peak_border_distance = self._distance_to_border(self.peak)
 
     def _distance_to_border(self, coords):
-        # print('*********')
-        # print(self.convex_hull.vertices)
         min_distance = 1e6
         for i in range(len(self.convex_hull.vertices) - 1):
             distance = _distance_to_line_segment(
@@ -314,7 +299,6 @@ class Source:
         # rough peak from precomputed image
         max_ind = np.argmax(self.image)
         max_coords = self.coords[max_ind, :]
-        # print('max coords: {} val: {}'.format(max_coords, self.image.flatten()[max_ind]))
 
         # fine peak from local image around rough peak
         range_x = [max_coords[0]-.25, max_coords[0]+.25]
@@ -329,17 +313,6 @@ class Source:
 
         max_ind = np.argmax(fine_image)
         max_coords = coords[max_ind, :]
-
-        # print('max coords: {} val: {}'.format(max_coords, fine_image.flatten()[max_ind]))
-
-        # plt.figure(figsize=(8,3))
-        # plt.subplot(1,2,1)
-        # plt.imshow(self.image)
-        # plt.colorbar()
-        # plt.subplot(1,2,2)
-        # plt.imshow(np.reshape(fine_image, (n_steps, n_steps)))
-        # plt.colorbar()
-        # plt.show()
 
         return max_coords
 
@@ -508,17 +481,6 @@ def get_gaussian_fit(image):
     difference = fit.reshape(image.shape) - image
     rmse = np.mean(difference**2)**.5
 
-    # print('RMSE: {}'.format(rmse))
-    # print(p0)
-    # print(popt)
-    # plt.subplot(1,2,1)
-    # plt.imshow(image)
-    # plt.colorbar()
-    # plt.subplot(1,2,2)
-    # plt.imshow(fit.reshape(image.shape))
-    # plt.colorbar()
-    # plt.show()
-
     return rmse
 
 
@@ -536,7 +498,6 @@ def is_multimodal_or_eccentric(weights, positions_2d):
 
 
 def find_radius(weights, positions_2d, deconv_sigma=.3):
-    #TODO (Stefan): deconvolve from model blur and flatmap blur?
     positions_2d = np.array(positions_2d)
     total = sum(weights)
     if total == 0:
@@ -550,41 +511,24 @@ def find_radius(weights, positions_2d, deconv_sigma=.3):
         standard_deviation = (np.sum(weights * square_distance) / total)**.5
         # weighted_mean_distance_from_center = np.sum(weights * np.sqrt(square_distance)) / total
 
-        # max_weight = np.max(weights)
-        # cutoff = .07
-        # filt_weight = [weight for weight, dist in zip(weights, square_distance) if weight > cutoff*max_weight]
-        # filt_dist = [dist for weight, dist in zip(weights, square_distance) if weight > cutoff*max_weight]
-        # print(filt_weight)
-        # print(filt_dist)
-
-        # print(weights)
-        # print(square_distance)
-        # print('COM x: {} y: {}'.format(center_of_mass_x, center_of_mass_y))
-
-        # try robust with 2sigma rather than 3
         robust_weights = weights * (square_distance < 2*standard_deviation)
         robust_total = sum(robust_weights)
         robust_standard_deviation = (np.sum(robust_weights * square_distance) / robust_total)**.5
-
-        # print('SD: {} {}'.format(standard_deviation, robust_standard_deviation))
 
         # subtract variance from voxel model smoothing
         return max(0, robust_standard_deviation**2 - deconv_sigma**2)**.5
 
 
 def flatmap_weights(positions_2d, weights, max_weight=None):
-    # print('min weight: {} max weight: {}'.format(np.min(weights), np.max(weights)))
-
     if max_weight is None:
         max_weight = max(weights)
     rel_weights = weights / max_weight
 
     for position, rel_weight in zip(positions_2d, rel_weights):
-        # increment gamma at sigma and 2*sigma and 3*sigma for clarity
+        # increment gamma at sigma, 2*sigma, 3*sigma for clarity
         gamma = .02*(rel_weight>np.exp(-(3**2)/2))+.25*(rel_weight>np.exp(-2))+.5*(rel_weight>np.exp(-1/2))
         color = [rel_weight, 0, 1 - rel_weight, gamma]
         plt.scatter(position[0], position[1], c=[color])
-    # plt.xticks([]), plt.yticks([])
 
 
 if __name__ == '__main__':

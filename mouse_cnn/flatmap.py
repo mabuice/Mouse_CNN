@@ -91,7 +91,6 @@ class FlatMap:
 
 if __name__ == '__main__':
     flatmap = FlatMap.get_instance()
-    # flatmap = FlatMap()
     # flatmap._plot_voxels()
     centre, radius = flatmap._fit()
     print('centre: {} radius: {}'.format(centre, radius))
