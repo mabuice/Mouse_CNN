@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append('../')
 from mouse_cnn.architecture import *
-
+from config import get_output_shrinkage
 
 class AnatomicalLayer:
-    def __init__(self, area, depth, num):
+    def __init__(self, area, depth, num, sigma):
         self.area = area
         self.depth = depth
         self.num = num
-        self.sigma = 1 # 1 or 1/2
+        self.sigma = sigma # 1 or 1/2
         #self.rf_size = rf_size
         #self.vf_size = vf_size
 
@@ -89,7 +89,7 @@ def gen_anatomy(input_depths = ['4'],
 
     # create LGNv
     hierarchy = 0
-    layer0 = AnatomicalLayer('LGNv', '', data.get_num_neurons('LGNv', None))
+    layer0 = AnatomicalLayer('LGNv', '', data.get_num_neurons('LGNv', None), get_output_shrinkage('LGNv', ''))
     anet.add_layer(layer0)
     output_map[0] = [layer0]
 
@@ -101,7 +101,7 @@ def gen_anatomy(input_depths = ['4'],
                 # add layers
                 area_layers = {}
                 for depth in depths:
-                    layer = AnatomicalLayer(area, depth, data.get_num_neurons(area, depth))
+                    layer = AnatomicalLayer(area, depth, data.get_num_neurons(area, depth), get_output_shrinkage(area,depth))
                     area_layers[depth] = layer
                     anet.add_layer(layer)
                     if depth in output_depths:
