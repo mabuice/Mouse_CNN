@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pickle
 from mcmodels.core import VoxelModelCache
@@ -27,15 +28,21 @@ class VoxelModel():
         self.source_mask = cache.get_source_mask()
         self.source_keys = self.source_mask.get_key(structure_ids=None)
 
-        # new version (runs slow)
-        # self.weights = cache.get_weights()
-        # self.nodes = cache.get_nodes()
-
-        # old version (runs fast)
-        with open(data_folder + '/voxel-connectivity-weights.pkl', 'rb') as file:
-            self.weights = pickle.load(file)
-        with open(data_folder + '/voxel-connectivity-nodes.pkl', 'rb') as file:
-            self.nodes = pickle.load(file)
+        weight_file = data_folder + '/voxel-weights.pkl'
+        node_file = data_folder + '/voxel-nodes.pkl'
+        if os.path.isfile(weight_file) and os.path.isfile(node_file):
+            with open(weight_file, 'rb') as file:
+                self.weights = pickle.load(file)
+            with open(node_file, 'rb') as file:
+                self.nodes = pickle.load(file)
+        else:
+            print('Loading weights from cache (takes several minutes) ...')
+            self.weights = cache.get_weights()
+            self.nodes = cache.get_nodes()
+            with open(weight_file, 'wb') as file:
+                pickle.dump(self.weights, file)
+            with open(node_file, 'wb') as file:
+                pickle.dump(self.nodes, file)
 
         self.structure_tree = cache.get_structure_tree()
 
@@ -171,7 +178,7 @@ class Target():
     #     """
     #     return self.get_kernel_width_mm(source) / cortical_magnification
 
-    def get_kernel_width_mm(self, source_name, plot=False):
+    def get_kernel_width_mm(self, source_name, plot=False, save=False):
         """
         :param source_name: source area/layer name
         :return: sigma of Gaussian approximation of mean input kernel
@@ -190,14 +197,20 @@ class Target():
             if not is_multimodal_or_eccentric(weights[target_voxel], positions_2d):
                 sigmas.append(find_radius(weights[target_voxel], positions_2d))
                 if plot:
+                    plt.clf()
                     flatmap_weights(positions_2d, weights[target_voxel])
-                    plt.title('sigma: {} peak to border: {}'.format(sigmas[-1], source.peak_border_distance))
-                    plt.show()
+                    plt.title('sigma: {:0.4f} peak to border: {:0.4f}'.format(sigmas[-1], source.peak_border_distance))
+                    plt.tight_layout()
+                    if save:
+                        plt.savefig('voxel{}.png'.format(target_voxel))
+                    else:
+                        plt.show()
 
         # plt.hist(sigmas, 20)
         # plt.xlabel('sigma'), plt.ylabel('count')
         # plt.show()
 
+        # print(np.mean(sigmas))
         return np.mean(sigmas)
 
     def flatmap_full_source_layer(self, layer, target_voxel):
@@ -522,12 +535,12 @@ def is_multimodal_or_eccentric(weights, positions_2d):
         return get_fraction_peak_at_center_of_mass(image) < .5
 
 
-def find_radius(weights, positions_2d):
+def find_radius(weights, positions_2d, deconv_sigma=.3):
     #TODO (Stefan): deconvolve from model blur and flatmap blur?
     positions_2d = np.array(positions_2d)
     total = sum(weights)
     if total == 0:
-        return 0, 0
+        return 0
     else:
         center_of_mass_x = np.sum(weights * positions_2d[:,0]) / total
         center_of_mass_y = np.sum(weights * positions_2d[:,1]) / total
@@ -536,23 +549,47 @@ def find_radius(weights, positions_2d):
         square_distance = offset_x**2 + offset_y**2
         standard_deviation = (np.sum(weights * square_distance) / total)**.5
         # weighted_mean_distance_from_center = np.sum(weights * np.sqrt(square_distance)) / total
-        return standard_deviation, total
+
+        # max_weight = np.max(weights)
+        # cutoff = .07
+        # filt_weight = [weight for weight, dist in zip(weights, square_distance) if weight > cutoff*max_weight]
+        # filt_dist = [dist for weight, dist in zip(weights, square_distance) if weight > cutoff*max_weight]
+        # print(filt_weight)
+        # print(filt_dist)
+
+        # print(weights)
+        # print(square_distance)
+        # print('COM x: {} y: {}'.format(center_of_mass_x, center_of_mass_y))
+
+        # try robust with 2sigma rather than 3
+        robust_weights = weights * (square_distance < 2*standard_deviation)
+        robust_total = sum(robust_weights)
+        robust_standard_deviation = (np.sum(robust_weights * square_distance) / robust_total)**.5
+
+        # print('SD: {} {}'.format(standard_deviation, robust_standard_deviation))
+
+        # subtract variance from voxel model smoothing
+        return max(0, robust_standard_deviation**2 - deconv_sigma**2)**.5
 
 
 def flatmap_weights(positions_2d, weights, max_weight=None):
+    # print('min weight: {} max weight: {}'.format(np.min(weights), np.max(weights)))
+
     if max_weight is None:
         max_weight = max(weights)
     rel_weights = weights / max_weight
 
     for position, rel_weight in zip(positions_2d, rel_weights):
-        color = [rel_weight, 0, 1 - rel_weight, .5]
+        # increment gamma at sigma and 2*sigma and 3*sigma for clarity
+        gamma = .02*(rel_weight>np.exp(-(3**2)/2))+.25*(rel_weight>np.exp(-2))+.5*(rel_weight>np.exp(-1/2))
+        color = [rel_weight, 0, 1 - rel_weight, gamma]
         plt.scatter(position[0], position[1], c=[color])
     # plt.xticks([]), plt.yticks([])
 
 
 if __name__ == '__main__':
-    for area in ['VISl', 'VISrl', 'VISli', 'VISpor']:
-        print('\'{}\': {},'.format(area, get_surface_area_mm2(area+'2/3')))
+    # for area in ['VISl', 'VISrl', 'VISli', 'VISpor']:
+    #     print('\'{}\': {},'.format(area, get_surface_area_mm2(area+'2/3')))
 
     # vm = VoxelModel()
     # weights = vm.get_weights(source_name='VISp2/3', target_name='VISpm4')
@@ -574,24 +611,26 @@ if __name__ == '__main__':
     #     (rel_weights, positions_2d) = pickle.load(file)
     # print(len(rel_weights))
 
-    # t = Target('VISpl', '4', external_in_degree=1000)
+    t = Target('VISpl', '4', external_in_degree=1000)
     # print('{} {} voxels'.format(t.target_name, t.num_voxels))
     # t.flatmap_full_source_layer('2/3', 10)
 
-    # source_name = 'VISp2/3'
-    # positions = t.voxel_model.get_positions(source_name)  # source voxel by 3
-    # weights = t.voxel_model.get_weights(source_name, t.target_name)  # target voxel by source voxel
-    #
-    # flatmap = FlatMap.get_instance()
-    # positions_2d = [flatmap.get_position_2d(position) for position in positions]  # source voxel by 2
-    #
-    # print(len(weights))
-    # print(len(weights[0]))
-    # print(len(positions_2d))
-    #
-    # for target_voxel in range(len(weights)):
-    #     flatmap_weights(positions_2d, weights[target_voxel])
-    #     plt.show()
+    source_name = 'VISp2/3'
+    positions = t.voxel_model.get_positions(source_name)  # source voxel by 3
+    weights = t.voxel_model.get_weights(source_name, t.target_name)  # target voxel by source voxel
+
+    flatmap = FlatMap.get_instance()
+    positions_2d = [flatmap.get_position_2d(position) for position in positions]  # source voxel by 2
+
+    print(len(weights))
+    print(len(weights[0]))
+    print(len(positions_2d))
+
+    for target_voxel in range(len(weights)):
+        flatmap_weights(positions_2d, weights[target_voxel])
+        plt.axis('off')
+        plt.savefig('weights{}.png'.format(target_voxel))
+        plt.show()
 
     #TODO: is path better than ancestors?
     # path = vm.structure_tree.get_structures_by_id([pre_id])[0]['structure_id_path']
