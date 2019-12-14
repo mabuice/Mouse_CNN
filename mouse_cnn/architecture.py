@@ -61,7 +61,7 @@ class Architecture(Data):
             width_micrometers = self.get_hit_rate_width(source_layer, target_layer)
             return width_micrometers * self._get_pixels_per_micrometer(source_area, source_layer)
         elif 'LGN' in source_area:
-            return 3
+            return 1
         else: # from mesoscale model
             target = self.targets[_get_name(target_area, target_layer)]
             width_mm = target.get_kernel_width_mm(_get_name(source_area, source_layer))
