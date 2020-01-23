@@ -5,6 +5,9 @@ import networkx as nx
 import torch
 from torch import nn
 from config import *
+import os
+import pickle
+from anatomy import gen_anatomy
 
 class ConvParam:
     def __init__(self, in_channels, out_channels, gsh, gsw):
@@ -44,14 +47,14 @@ class Network:
                 return layer
         assert('no conv layer found!')
         
-    def construct_from_anatomy(self, anet):
+    def construct_from_anatomy(self, anet, data):
         # construct conv layer for input -> LGNv
         self.area_channels['input'] = INPUT_SIZE[0]
         self.area_size['input'] = INPUT_SIZE[1]
         
         out_sigma = anet.find_layer('LGNv','').sigma
         out_channels = np.floor(anet.find_layer('LGNv','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
-        anet.data.set_num_channels('LGNv', '', out_channels)
+        data.set_num_channels('LGNv', '', out_channels)
         self.area_channels['LGNv'] = out_channels
         
         out_size =  INPUT_SIZE[1] * out_sigma
@@ -87,14 +90,14 @@ class Network:
             self.area_size[e[1].area+e[1].depth] = out_size
             out_channels = np.floor(out_anat_layer.num/out_size**2)
             
-            anet.data.set_num_channels(e[1].area, e[1].depth, out_channels)
+            data.set_num_channels(e[1].area, e[1].depth, out_channels)
             self.area_channels[e[1].area+e[1].depth] = out_channels
             
             convlayer = ConvLayer(in_layer_name, out_layer_name, 
                                   ConvParam(in_channels=in_channels, 
                                             out_channels=out_channels,
-                                        gsh=anet.data.get_kernel_peak_probability(e[0].area, e[0].depth, e[1].area, e[1].depth),
-                                        gsw=anet.data.get_kernel_width_pixels(e[0].area, e[0].depth, e[1].area, e[1].depth)),
+                                        gsh=data.get_kernel_peak_probability(e[0].area, e[0].depth, e[1].area, e[1].depth),
+                                        gsw=data.get_kernel_width_pixels(e[0].area, e[0].depth, e[1].area, e[1].depth)),
                                     out_size, out_sigma)
             
             self.layers.append(convlayer)
@@ -118,8 +121,6 @@ class Network:
         plt.show()   
 
 
-
-
 class Conv2dMask(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, mask=1, stride=1, padding=0):
         super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, stride=stride)
@@ -129,7 +130,7 @@ class Conv2dMask(nn.Conv2d):
         else:
             self.mask = None
     def forward(self, input):
-        if self.mask:
+        if self.mask is not None:
             return super(Conv2dMask, self).conv2d_forward(self.mypadding(input), self.weight*self.mask)
         else:
             return super(Conv2dMask, self).conv2d_forward(self.mypadding(input), self.weight)
@@ -156,9 +157,12 @@ class MouseNet(nn.Module):
     """
     torch model constructed by parameters provided in network.
     """
-    def __init__(self, network, mask=1):
+    def __init__(self, network, mask=1, bn=1):
         super(MouseNet, self).__init__()
         self.Convs = nn.ModuleDict()
+        self.bn = bn
+        if self.bn:
+            self.BNs = nn.ModuleDict()
         self.network = network
         
         G, _ = network.make_graph()
@@ -177,6 +181,8 @@ class MouseNet(nn.Module):
                 padding = (int(KmS/2), int(KmS/2+1), int(KmS/2), int(KmS/2+1))
             self.Convs[e[0]+e[1]] = Conv2dMask(params.in_channels, params.out_channels, params.kernel_size,
                                                params.gsh, params.gsw, stride=int(1/layer.out_sigma), mask=mask, padding=padding)
+            if self.bn:
+                self.BNs[e[0]+e[1]] = nn.BatchNorm2d(params.out_channels)
 
         final_layer = network.find_conv_source_target('%s2/3'%OUTPUT_AREA,'%s5'%OUTPUT_AREA)
         final_size = final_layer.out_size
@@ -191,17 +197,31 @@ class MouseNet(nn.Module):
             nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
         )
 
-    def forward(self, x):
+    def get_img_feature(self, x, area_depth):
         calc_graph = {}
         for e in self.edge_bfs:
             if e[0] == 'input':
-                calc_graph[e[1]] = self.Convs[e[0]+e[1]](x)
+                if self.bn:
+                    calc_graph[e[1]] = self.BNs[e[0]+e[1]](self.Convs[e[0]+e[1]](x))
+                else:
+                    calc_graph[e[1]] = self.Convs[e[0]+e[1]](x)
             else:
                 if e[1] in calc_graph:
-                    calc_graph[e[1]] = calc_graph[e[1]] + self.Convs[e[0]+e[1]](calc_graph[e[0]])
+                    if self.bn:
+                        calc_graph[e[1]] = calc_graph[e[1]] + self.BNs[e[0]+e[1]](self.Convs[e[0]+e[1]](calc_graph[e[0]]))
+                    else:
+                        calc_graph[e[1]] = calc_graph[e[1]] + self.Convs[e[0]+e[1]](calc_graph[e[0]])
                 else:
-                    calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
-        x = torch.flatten(calc_graph['%s5'%OUTPUT_AREA], 1)
+                    if self.bn:
+                        calc_graph[e[1]] = self.BNs[e[0]+e[1]](self.Convs[e[0]+e[1]](calc_graph[e[0]]))
+                    else:
+                        calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
+        x = torch.flatten(calc_graph['%s'%(area_depth)], 1)
+        return x
+
+
+    def forward(self, x):
+        x = self.get_img_feature(x, '%s5'%OUTPUT_AREA)
         x = self.classifier(x)
         return x
                 
@@ -218,3 +238,14 @@ class MouseNet(nn.Module):
                    nn.init.normal_(m.weight, 0, 0.01)
                    nn.init.constant_(m.bias, 0)
 
+def gen_network(net_name, architecture, data_folder=DATA_FOLDER):
+    if os.path.exists('./myresults/%s.pkl'%net_name):
+        f = open('./myresults/%s.pkl'%net_name,'rb')
+        net = pickle.load(f)
+    else:
+        anet = gen_anatomy(architecture)
+        net = Network()
+        net.construct_from_anatomy(anet, architecture)
+        f = open('./myresults/%s.pkl'%net_name,'wb')
+        pickle.dump(net, f)
+    return net

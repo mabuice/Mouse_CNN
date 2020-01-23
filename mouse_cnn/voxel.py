@@ -43,7 +43,6 @@ class VoxelModel():
                 pickle.dump(self.weights, file)
             with open(node_file, 'wb') as file:
                 pickle.dump(self.nodes, file)
-
         self.structure_tree = cache.get_structure_tree()
 
     def get_weights(self, source_name, target_name):
