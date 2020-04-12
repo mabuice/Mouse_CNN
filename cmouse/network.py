@@ -107,18 +107,23 @@ class Network:
         edges = [(p.source_name, p.target_name) for p in self.layers]
         for edge in edges:
             G.add_edge(edge[0], edge[1])
-        node_label_dict = { layer:(layer, self.area_size[layer], int(self.area_channels[layer])) for layer in G.nodes()}
+        #node_label_dict = { layer:(layer, c, int(self.area_channels[layer])) for layer in G.nodes()}
+        node_label_dict = { layer:'%s\n%s'%(layer, int(self.area_channels[layer])) for layer in G.nodes()}
+        
         return G, node_label_dict
 
-    def draw_graph(self, node_size=1600, node_color='yellow', edge_color='red'):
+    def draw_graph(self, node_size=2000, node_color='yellow', edge_color='red'):
         G, node_label_dict = self.make_graph()
         edge_label_dict = {(c.source_name, c.target_name):(c.params.kernel_size) for c in self.layers}
-        plt.figure(figsize=(14,20))
+
+        plt.figure(figsize=(12,12))
         pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
-        nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color,alpha=0.5)
-        nx.draw_networkx_labels(G, pos, node_label_dict)
-        nx.draw_networkx_edge_labels(G, pos, edge_label_dict)
-        plt.show()   
+        nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color,alpha=0.4)
+        nx.draw_networkx_labels(G, pos, node_label_dict, fontsize=1000,font_weight=640, alpha=0.7, font_color='black')
+        nx.draw_networkx_edge_labels(G, pos, edge_label_dict, fontsize=2000, font_weight=640,alpha=0.7, font_color='red')
+        plt.show()  
+
+    
 
 
 class Conv2dMask(nn.Conv2d):
@@ -184,11 +189,21 @@ class MouseNet(nn.Module):
             if self.bn:
                 self.BNs[e[0]+e[1]] = nn.BatchNorm2d(params.out_channels)
 
-        final_layer = network.find_conv_source_target('%s2/3'%OUTPUT_AREA,'%s5'%OUTPUT_AREA)
-        final_size = final_layer.out_size
-        final_channels = final_layer.params.out_channels
+
+        total_size=0
+        for area in OUTPUT_AREAS:
+            if area =='VISp5':
+                layer = network.find_conv_source_target('VISp2/3','VISp5')
+                visp_out = layer.params.out_channels
+                total_size += 32*32*32
+            else:
+                layer = network.find_conv_source_target('%s2/3'%area[:-1],'%s'%area)
+                total_size += int(layer.out_size*layer.out_size*layer.params.out_channels)
+        if 'VISp5' in OUTPUT_AREAS:
+            self.visp5_downsampler = nn.Conv2d(visp_out, 32, 1, stride=2)
+
         self.classifier = nn.Sequential(
-            nn.Linear(int(final_channels * final_size * final_size), HIDDEN_LINEAR),
+            nn.Linear(int(total_size), HIDDEN_LINEAR),
             nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(HIDDEN_LINEAR, HIDDEN_LINEAR),
@@ -197,7 +212,7 @@ class MouseNet(nn.Module):
             nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
         )
 
-    def get_img_feature(self, x, area_depth):
+    def get_img_feature(self, x, area_list):
         calc_graph = {}
         for e in self.edge_bfs:
             if e[0] == 'input':
@@ -216,12 +231,22 @@ class MouseNet(nn.Module):
                         calc_graph[e[1]] = self.BNs[e[0]+e[1]](self.Convs[e[0]+e[1]](calc_graph[e[0]]))
                     else:
                         calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
-        x = torch.flatten(calc_graph['%s'%(area_depth)], 1)
-        return x
+        
+        if len(area_list) == 1:
+            return torch.flatten(calc_graph['%s'%(area_list[0])], 1)
+        else:
+            re = None
+            for area in area_list:
+                if area == 'VISp5':
+                    re=torch.flatten(self.visp5_downsampler(calc_graph['VISp5']), 1)
+                else:
+                    re=torch.cat([torch.flatten(calc_graph[area], 1), re], axis=1)
+        return re
 
 
     def forward(self, x):
-        x = self.get_img_feature(x, '%s5'%OUTPUT_AREA)
+        x = self.get_img_feature(x, OUTPUT_AREAS)
+
         x = self.classifier(x)
         return x
                 
@@ -238,7 +263,7 @@ class MouseNet(nn.Module):
                    nn.init.normal_(m.weight, 0, 0.01)
                    nn.init.constant_(m.bias, 0)
 
-def gen_network(net_name, architecture, data_folder=DATA_FOLDER):
+def gen_network(net_name, architecture, data_folder=DATA_DIR):
     if os.path.exists('./myresults/%s.pkl'%net_name):
         f = open('./myresults/%s.pkl'%net_name,'rb')
         net = pickle.load(f)
