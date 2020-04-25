@@ -8,22 +8,31 @@ from config import *
 import os
 import pickle
 from anatomy import gen_anatomy
+import matplotlib.pyplot as plt
 
 class ConvParam:
-    def __init__(self, in_channels, out_channels, gsh, gsw):
+    def __init__(self, in_channels, out_channels, gsh, gsw, out_sigma):
         self.in_channels = int(in_channels)
         self.out_channels = int(out_channels)
         self.gsh = gsh
         self.gsw = gsw
         self.kernel_size = 2*int(self.gsw * EDGE_Z) + 1
 
+        KmS = int((self.kernel_size-1/out_sigma))
+        if np.mod(KmS,2)==0:
+            padding = int(KmS/2)
+        else:
+            padding = (int(KmS/2), int(KmS/2+1), int(KmS/2), int(KmS/2+1))
+        self.padding = padding
+        self.stride = int(1/out_sigma)
+        
+
 class ConvLayer:
-    def __init__(self, source_name, target_name, params, out_size, out_sigma):
+    def __init__(self, source_name, target_name, params, out_size):
         self.params = params
         self.source_name = source_name
         self.target_name = target_name
         self.out_size = out_size
-        self.out_sigma = out_sigma
 
 
 class Network:
@@ -59,13 +68,14 @@ class Network:
         
         out_size =  INPUT_SIZE[1] * out_sigma
         self.area_size['LGNv'] = out_size
-        
+
+       
         convlayer = ConvLayer('input', 'LGNv', 
                               ConvParam(in_channels=INPUT_SIZE[0], 
                                         out_channels=out_channels,
                                         gsh=INPUT_GSH,
-                                        gsw=INPUT_GSW),
-                              out_size, out_sigma)
+                                        gsw=INPUT_GSW, out_sigma=out_sigma),
+                              out_size)
         self.layers.append(convlayer)
        
         # construct conv layers for all other connections
@@ -97,8 +107,8 @@ class Network:
                                   ConvParam(in_channels=in_channels, 
                                             out_channels=out_channels,
                                         gsh=data.get_kernel_peak_probability(e[0].area, e[0].depth, e[1].area, e[1].depth),
-                                        gsw=data.get_kernel_width_pixels(e[0].area, e[0].depth, e[1].area, e[1].depth)),
-                                    out_size, out_sigma)
+                                        gsw=data.get_kernel_width_pixels(e[0].area, e[0].depth, e[1].area, e[1].depth), out_sigma=out_sigma),
+                                    out_size)
             
             self.layers.append(convlayer)
             
@@ -122,8 +132,6 @@ class Network:
         nx.draw_networkx_labels(G, pos, node_label_dict, fontsize=1000,font_weight=640, alpha=0.7, font_color='black')
         nx.draw_networkx_edge_labels(G, pos, edge_label_dict, fontsize=2000, font_weight=640,alpha=0.7, font_color='red')
         plt.show()  
-
-    
 
 
 class Conv2dMask(nn.Conv2d):
@@ -154,7 +162,10 @@ class Conv2dMask(nn.Conv2d):
         radius = np.sqrt(X**2 + Y**2)
 
         probability = peak * np.exp(-radius**2/2/sigma**2)
-        return np.random.rand(len(x), len(x)) < probability
+
+        re = np.random.rand(len(x), len(x)) < probability
+        plt.imshow(re, cmap='Greys')
+        return re
 
 
 
@@ -179,16 +190,20 @@ class MouseNet(nn.Module):
             layer = network.find_conv_source_target(e[0], e[1])
             params = layer.params
 
-            KmS = int((params.kernel_size-1/layer.out_sigma))
-            if np.mod(KmS,2)==0:
-                padding = int(KmS/2)
-            else:
-                padding = (int(KmS/2), int(KmS/2+1), int(KmS/2), int(KmS/2+1))
+            #print('_______________________________')
+            #print(e[0], e[1])
+#            print(params.in_channels, params.out_channels, params.kernel_size, params.gsh, params.gsw, params.stride, params.padding)
+      
+
             self.Convs[e[0]+e[1]] = Conv2dMask(params.in_channels, params.out_channels, params.kernel_size,
-                                               params.gsh, params.gsw, stride=int(1/layer.out_sigma), mask=mask, padding=padding)
+                                               params.gsh, params.gsw, stride=params.stride, mask=mask, padding=params.padding)
+            
+            ## plotting Gaussian 
+            #plt.title('%s_%s_%sx%s'%(e[0].replace('/',''), e[1].replace('/',''), params.kernel_size, params.kernel_size))
+            #plt.savefig('%s_%s'%(e[0].replace('/',''), e[1].replace('/','')))
+
             if self.bn:
                 self.BNs[e[0]+e[1]] = nn.BatchNorm2d(params.out_channels)
-
 
         total_size=0
         for area in OUTPUT_AREAS:
@@ -231,6 +246,7 @@ class MouseNet(nn.Module):
                         calc_graph[e[1]] = self.BNs[e[0]+e[1]](self.Convs[e[0]+e[1]](calc_graph[e[0]]))
                     else:
                         calc_graph[e[1]] = self.Convs[e[0]+e[1]](calc_graph[e[0]])
+            calc_graph[e[1]] = nn.ReLU(inplace=True)(calc_graph[e[1]])
         
         if len(area_list) == 1:
             return torch.flatten(calc_graph['%s'%(area_list[0])], 1)
