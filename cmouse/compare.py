@@ -56,8 +56,8 @@ if args.ismouse == 1:
     mousenet = MouseNet(net, mask=mask, bn=1) 
     if net_weight is not None:
         f = torch.load(net_weight, map_location=device)
-        mousenet.load_state_dict(f['net'])
-        #mousenet.load_state_dict(f['state_dict'])
+        # mousenet.load_state_dict(f['net'])
+        mousenet.load_state_dict(f['state_dict'])
     net1 = mousenet
     layer_maps = {0: 'LGNv',
                 1: 'VISp4', 2:'VISp2/3', 3:'VISp5',

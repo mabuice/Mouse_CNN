@@ -138,7 +138,7 @@ class Conv2dMask(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, gsh, gsw, mask=1, stride=1, padding=0):
         super(Conv2dMask, self).__init__(in_channels, out_channels, kernel_size, stride=stride)
         self.mypadding = nn.ConstantPad2d(padding, 0)
-        if mask:
+        if mask==1:
             self.mask = nn.Parameter(torch.Tensor(self.make_gaussian_kernel_mask(gsh, gsw)))
         else:
             self.mask = None
@@ -287,6 +287,8 @@ def gen_network(net_name, architecture, data_folder=DATA_DIR):
         anet = gen_anatomy(architecture)
         net = Network()
         net.construct_from_anatomy(anet, architecture)
+        if not os.path.exists('./myresults'):
+            os.mkdir('./myresults')
         f = open('./myresults/%s.pkl'%net_name,'wb')
         pickle.dump(net, f)
     return net
