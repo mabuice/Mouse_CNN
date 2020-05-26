@@ -3,6 +3,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import sys
 sys.path.append('../')
+sys.path.append('../../')
+sys.path.append('../../../')
 from mouse_cnn.architecture import *
 from config import get_output_shrinkage
 
@@ -21,8 +23,7 @@ class Projection:
         self.post = post
 
 class AnatomicalNet:
-    def __init__(self, data):
-        self.data = data
+    def __init__(self):
         self.layers = []
         self.projections = []
 
@@ -74,15 +75,13 @@ class AnatomicalNet:
         nx.draw_networkx_labels(G, pos, node_label_dict)
         plt.show()
 
-def gen_anatomy(input_depths = ['4'],
+def gen_anatomy(data, input_depths = ['4'],
             output_depths = ['2/3', '5'],
-            laminar_connections = [('4', '2/3'), ('2/3', '5')],
-            data_folder = '../data'):
+            laminar_connections = [('4', '2/3'), ('2/3', '5')]):
     """
     generate anatomy structure from data class
     """
-    data = Architecture(data_folder=data_folder)
-    anet = AnatomicalNet(data)
+    anet = AnatomicalNet()
     areas = data.get_areas()
     depths = data.get_layers()
     output_map = {} # collect output layers for each hierarchy

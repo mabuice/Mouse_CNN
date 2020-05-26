@@ -105,3 +105,14 @@ venv.bak/
 # mypy
 .mypy_cache/
 .ipynb
+
+
+# cmouse
+data/
+wandb/
+pics/
+.pkl
+.tar
+
+mouse_connectivity_models/
+
