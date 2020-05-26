@@ -1,4 +1,5 @@
 import numpy as np
+from config import EDGE_Z
 from mouse_cnn.data import Data
 from mouse_cnn.voxel import Target, get_surface_area_mm2
 
@@ -48,10 +49,26 @@ class Architecture(Data):
         else: # from mesoscale model
             target = self.targets[_get_name(target_area, target_layer)]
             source_name = _get_name(source_area, source_layer)
+           
+            """
+            e_ij include the external inputs from areas specified by Target._set_external_sources()
+            which includes input from VISp4, VISp2/3, VISp5 of all lower areas in the visual hierarchy
+            if the model did not include all above connections specified by Target._set_external_sources()
+            then the total inter-area externel in-degree could be smaller than the specified 1000
+            """
             e_ij = target.get_n_external_inputs_for_source(source_name)
+
             d_w = self.get_kernel_width_pixels(source_area, source_layer, target_area, target_layer)
             source_channels = self.channels[source_name]
-            d_p = e_ij / (source_channels * 2 * np.pi * d_w ** 2)
+           
+            # d_p = e_ij / (source_channels * 2 * np.pi * d_w ** 2)
+            x = np.arange(-int(EDGE_Z*d_w), int(EDGE_Z*d_w) + 1) 
+            X, Y = np.meshgrid(x, x)
+            radius = np.sqrt(X**2 + Y**2)
+            #probability = d_p * np.exp(-radius**2/2/d_w **2)
+            #np.sum(probability) * source_channels = e_ij
+            d_p = e_ij / source_channels / np.sum(np.exp(-radius**2/2/d_w **2))
+
             # check = d_p * source_channels * 2 * np.pi * d_w ** 2
             # print('e_ij {} d_w {} d_p {} source_channels {} e {}'.format(e_ij, d_w, d_p, source_channels, check))
             return d_p
@@ -80,7 +97,7 @@ def _get_targets(data, data_folder='data_files/'):
             for layer in data.get_layers():
                 in_degree = data.get_extrinsic_in_degree(area, layer)
                 targets[_get_name(area, layer)] = Target(area, layer, external_in_degree=in_degree, data_folder=data_folder)
-    return targets
+    return targets 
 
 
 if __name__ == '__main__':
