@@ -2,8 +2,8 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import svm
-from mouse_cnn.voxel import VoxelModel, is_multimodal, fit_image, get_gaussian_fit
-from mouse_cnn.voxel import get_fraction_peak_at_centroid, get_multimodal_depth_fraction
+from mouse_cnn.voxel import VoxelModel, is_multimodal_or_eccentric, fit_image, get_gaussian_fit
+from mouse_cnn.voxel import get_fraction_peak_at_center_of_mass, get_multimodal_depth_fraction
 from mouse_cnn.flatmap import FlatMap
 
 
@@ -93,7 +93,7 @@ def multimodal_labels():
 
 
 if __name__ == '__main__':
-    # save_example_kernels()
+    save_example_kernels()
     data = load_example_kernels()
 
     gf = []
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
             images.append(image)
             mdf.append(get_multimodal_depth_fraction(image))
-            fpc.append(get_fraction_peak_at_centroid(image))
+            fpc.append(get_fraction_peak_at_center_of_mass(image))
             lab.append(l)
 
     for i in range(len(lab)):
