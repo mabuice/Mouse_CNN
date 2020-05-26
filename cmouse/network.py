@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import torch
 from torch import nn
-from config import *
+from config import DATA_DIR, INPUT_SIZE, EDGE_Z
 from anatomy import gen_anatomy
 import os
 import pickle
