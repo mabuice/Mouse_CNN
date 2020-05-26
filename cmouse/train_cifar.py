@@ -9,6 +9,7 @@ from config import *
 from train_config import *
 from anatomy import *
 from network import *
+from mousenet_v1 import *
 from fsimilarity import *
 import random
 import wandb
@@ -20,7 +21,7 @@ parser.add_argument('--mask', type=int, help='if use Gaussian mask')
 args = parser.parse_args()
 SEED = args.seed
 MASK = args.mask
-RUN_NAME_MASK = '%s_mask_%s'%(RUN_NAME, MASK)
+RUN_NAME_MASK = 'mask_%s_%s'%(MASK, RUN_NAME)
 RUN_NAME_MASK_SEED = '%s_seed_%s'%(RUN_NAME_MASK, SEED)
 
 def train(args, model, device, train_loader, optimizer, epoch):
@@ -59,7 +60,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
                 "running acc": 100.*correct/total})
             running_loss = 0.0            
 
-def test(args, model, device, test_loader):
+def test(args, model, device, test_loader, epoch):
     # Switch model to evaluation mode. This is necessary for layers like dropout, batchnorm etc which behave differently in training and evaluation mode
     model.eval()
     test_loss = 0
@@ -83,7 +84,7 @@ def test(args, model, device, test_loader):
     # Save checkpoint.
     global best_acc
     acc = 100. * correct / len(test_loader.dataset)
-    if acc > best_acc:
+    if epoch == 0 or acc > best_acc:
         print('Saving..')
         state = {
             'state_dict': model.state_dict(),
@@ -93,7 +94,10 @@ def test(args, model, device, test_loader):
         save_dir = RESULT_DIR + '/' + RUN_NAME_MASK +'/'
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
-        torch.save(state, save_dir + '%s_%s.pt'%(SEED, acc))
+        if epoch == 0:
+            torch.save(state, save_dir + '%s_init.pt'%(SEED))
+        else:
+            torch.save(state, save_dir + '%s_best.pt'%(SEED))
         best_acc = acc
 
     # WandB - wandb.log(a_dict) logs the keys and values of the dictionary passed in and associates the values with a step.
@@ -192,6 +196,8 @@ net_name = 'network_(%s,%s,%s)'%(INPUT_SIZE[0],INPUT_SIZE[1],INPUT_SIZE[2])
 architecture = Architecture(data_folder=DATA_DIR)
 net = gen_network(net_name, architecture)
 mousenet = MouseNet(net, mask=MASK, bn=1)
+#mousenet = MouseNetV1(net, mask=MASK, bn=1)
+
 mousenet.to(device)
 
 optimizer = optim.SGD(mousenet.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=5e-4)
@@ -208,11 +214,12 @@ def adjust_learning_rate(config, optimizer, epoch):
     if USE_WANDB:
         config.update({'lr': lr}, allow_val_change=True)
 
+test(config, mousenet, device, test_loader, 0)  
 for epoch in range(1, EPOCHS + 1):  # loop over the dataset multiple times
     adjust_learning_rate(config, optimizer, epoch)
     print(epoch)     
     train(config, mousenet, device, train_loader, optimizer, epoch)
-    test(config, mousenet, device, test_loader)  
+    test(config, mousenet, device, test_loader, epoch)  
     #break
 
 # WandB - Save the model checkpoint. This automatically saves a file to the cloud and associates it with the current run.

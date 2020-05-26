@@ -11,13 +11,14 @@ import random
 parse = argparse.ArgumentParser()
 parse.add_argument('--net', type=str, default='network_(2,64,64)', help='specifiy a network as yard stick')
 parse.add_argument('--ismouse', type=int, default=1, help='is it comparing with mouse net?')
-parse.add_argument('--issimple', type=int, default=0, help='is it comparing with simple mouse net?')
+# parse.add_argument('--issimple', type=int, default=0, help='is it comparing with simple mouse net?')
 parse.add_argument('--mask', type=int, default=1, help='add Gaussian mask')
 parse.add_argument('--nchannels', type=int, default=2, help='number of input channels')
 parse.add_argument('--size', type=int, default=64, help='size of input images')
 parse.add_argument('--netw', type=str, default=None, help='specify a filename for network weights')
 parse.add_argument('--method', type=str, default='ssm_pcc', help='metric')
 parse.add_argument('--neuron', type=int, default=None, help='number of neurons')
+parse.add_argument('--ndraws', type=int, default=1, help='number of draws of neurons')
 parse.add_argument('--config', type=str, default='region')
 parse.add_argument('--folder', type=str, default=None)
 parse.add_argument('--seed', default=42, type=int, help='random seed')
@@ -28,6 +29,7 @@ mask = args.mask
 net_weight = args.netw
 method = args.method
 num_neuron = args.neuron
+num_draws = args.ndraws
 fconfig = args.config
 seed = args.seed
 size = INPUT_SIZE[1]
@@ -58,6 +60,7 @@ if args.ismouse == 1:
         f = torch.load(net_weight, map_location=device)
         # mousenet.load_state_dict(f['net'])
         mousenet.load_state_dict(f['state_dict'])
+        best_acc1 = f['best_acc1']
     net1 = mousenet
     layer_maps = {0: 'LGNv',
                 1: 'VISp4', 2:'VISp2/3', 3:'VISp5',
@@ -71,23 +74,23 @@ if args.ismouse == 1:
         img_i = transform_one_image(stim[i], size)[None,:,:,:]
         imgs = torch.cat((imgs, img_i), 0)
 
-elif args.issimple == 1:
-    architecture = Architecture(data_folder=DATA_DIR)
-    net = simplenet.gen_simple_net(net_name, architecture)
-    simplenet = simplenet.SimpleNet(net, mask=mask, bn=1)
-    if net_weight is not None:
-        f = torch.load(net_weight, map_location=device)
-        simplenet.load_state_dict(f['net'])
-    net1 = simplenet
-    layer_maps = {0: 'LGNv',
-                1: 'VISp4', 2:'VISp2/3', 3:'VISp5',
-                4:'VISal4', 5:'VISal2/3', 6:'VISal5', 
-                7:'VISpor4', 8:'VISpor2/3', 9:'VISpor5'}
+# elif args.issimple == 1:
+#     architecture = Architecture(data_folder=DATA_DIR)
+#     net = simplenet.gen_simple_net(net_name, architecture)
+#     simplenet = simplenet.SimpleNet(net, mask=mask, bn=1)
+#     if net_weight is not None:
+#         f = torch.load(net_weight, map_location=device)
+#         simplenet.load_state_dict(f['net'])
+#     net1 = simplenet
+#     layer_maps = {0: 'LGNv',
+#                 1: 'VISp4', 2:'VISp2/3', 3:'VISp5',
+#                 4:'VISal4', 5:'VISal2/3', 6:'VISal5', 
+#                 7:'VISpor4', 8:'VISpor2/3', 9:'VISpor5'}
     
-    imgs = transform_one_image(stim[0], size)[None,:,:,:]
-    for i in range(1, len(stim)):
-        img_i = transform_one_image(stim[i], size)[None,:,:,:]
-        imgs = torch.cat((imgs, img_i), 0)
+#     imgs = transform_one_image(stim[0], size)[None,:,:,:]
+#     for i in range(1, len(stim)):
+#         img_i = transform_one_image(stim[i], size)[None,:,:,:]
+#         imgs = torch.cat((imgs, img_i), 0)
 else:
     random.seed(seed)       # python random seed
     torch.manual_seed(seed) # pytorch random seed
@@ -117,7 +120,7 @@ compare_param['dmetric'] = 'pcc' # for ssm
 
 comparator = xm.compare.get_comparator(method, **compare_param)
 
-results = np.zeros([len(layer_maps), 6])
+results = np.zeros([len(layer_maps), 6, num_draws])
 def mice_net(data, stim, net1, comparator, num_neuron):
     if args.ismouse or args.issimple:
         net1.eval() # set the model to evaluation mode
@@ -135,27 +138,27 @@ def mice_net(data, stim, net1, comparator, num_neuron):
         for j, region in enumerate(data.keys()):
             print(region)
             re = []
-            for s in range(1):
+            for s in range(num_draws):
                 d = data[region][:-1, :]
                 if num_neuron == None:
                     layer2 = xm.rep.Rep(d, None, False)
                 else:
                     layer2 = xm.rep.Rep(d[:, np.random.choice(d.shape[1], num_neuron)], None, False)
                 re.append(comparator.compare(layer1, layer2)['score'][0])
-            results[i,j] = np.mean(re)
+            results[i,j, :] = re
             print(results[i,j])
 
-def mice_mice(data, comparator):
-    for i, region1 in enumerate(data.keys()):
-        d = data[region1][:-1, :]
-        layer1 = xm.rep.Rep(d, None, False)
+# def mice_mice(data, comparator):
+#     for i, region1 in enumerate(data.keys()):
+#         d = data[region1][:-1, :]
+#         layer1 = xm.rep.Rep(d, None, False)
                 
-        for j, region2 in enumerate(data.keys()):
-            d = data[region2][:-1, :]
-            layer2 = xm.rep.Rep(d, None, False)
-            tmp = comparator.compare(layer1, layer2)['score'][0]
-            results[i,j] = tmp
-            print(region1, region2, tmp)
+#         for j, region2 in enumerate(data.keys()):
+#             d = data[region2][:-1, :]
+#             layer2 = xm.rep.Rep(d, None, False)
+#             tmp = comparator.compare(layer1, layer2)['score'][0]
+#             results[i,j] = tmp
+#             print(region1, region2, tmp)
             
 data = xm.data.read_neuro_file(DATA_DIR+'/ABO/bob_ns_response_dict_by_%s.pkl'%fconfig)
 #mice_mice(data, comparator)
@@ -164,7 +167,7 @@ if args.folder:
     save_folder = RESULT_DIR+'/comparison/%s/'% args.folder
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
-    np.save(save_folder + '%s_eval.npy'% (net_weight.split('/')[-1]), results)
+    np.save(save_folder + '%s_best_acc1_%s_%s.npy'% (net_weight.split('/')[-1], best_acc1, num_neuron), results)
 else:
     save_folder = RESULT_DIR+'/comparison/init_nets/%s_default/'%net_name
     if not os.path.exists(save_folder):
