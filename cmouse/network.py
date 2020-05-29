@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import torch
 from torch import nn
-from config import DATA_DIR, INPUT_SIZE, EDGE_Z
+from config import INPUT_SIZE, EDGE_Z
 from anatomy import gen_anatomy
 import os
 import pickle
@@ -167,7 +167,7 @@ def load_network_from_pickle(file_path):
     net = pickle.load(f)
     return net
 
-def gen_network(net_name, architecture, data_folder=DATA_DIR):
+def gen_network(net_name, architecture, data_folder=''):
     file_path = './myresults/%s.pkl'%net_name
     if os.path.exists(file_path):
         net = load_network_from_pickle(file_path)
