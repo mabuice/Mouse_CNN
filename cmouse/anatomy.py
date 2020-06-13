@@ -6,14 +6,14 @@ sys.path.append('../')
 sys.path.append('../../')
 sys.path.append('../../../')
 from mouse_cnn.architecture import *
-from config import get_output_shrinkage
+# from config import get_output_shrinkage
 
 class AnatomicalLayer:
-    def __init__(self, area, depth, num, sigma):
+    def __init__(self, area, depth, num):
         self.area = area
         self.depth = depth
         self.num = num
-        self.sigma = sigma # 1 or 1/2
+        #self.sigma = sigma # 1 or 1/2
         #self.rf_size = rf_size
         #self.vf_size = vf_size
 
@@ -76,7 +76,7 @@ class AnatomicalNet:
         plt.show()
 
 def gen_anatomy(data, input_depths = ['4'],
-            output_depths = ['2/3', '5'],
+            output_depths = ['4', '2/3', '5'],
             laminar_connections = [('4', '2/3'), ('2/3', '5')]):
     """
     generate anatomy structure from data class
@@ -88,7 +88,7 @@ def gen_anatomy(data, input_depths = ['4'],
 
     # create LGNv
     hierarchy = 0
-    layer0 = AnatomicalLayer('LGNv', '', data.get_num_neurons('LGNv', None), get_output_shrinkage('LGNv', ''))
+    layer0 = AnatomicalLayer('LGNv', '', data.get_num_neurons('LGNv', None))
     anet.add_layer(layer0)
     output_map[0] = [layer0]
 
@@ -100,7 +100,7 @@ def gen_anatomy(data, input_depths = ['4'],
                 # add layers
                 area_layers = {}
                 for depth in depths:
-                    layer = AnatomicalLayer(area, depth, data.get_num_neurons(area, depth), get_output_shrinkage(area,depth))
+                    layer = AnatomicalLayer(area, depth, data.get_num_neurons(area, depth))
                     area_layers[depth] = layer
                     anet.add_layer(layer)
                     if depth in output_depths:
@@ -115,4 +115,7 @@ def gen_anatomy(data, input_depths = ['4'],
                     if depth in input_depths:
                         for l in output_map[hierarchy-1]:
                             anet.add_projection(Projection(l, area_layers[depth]))
+                        if hierarchy == 3:
+                            for l in output_map[hierarchy-2]:
+                                anet.add_projection(Projection(l, area_layers[depth]))
     return anet

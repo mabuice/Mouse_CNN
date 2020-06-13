@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import torch
 from torch import nn
-from config import INPUT_SIZE, EDGE_Z
+from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_out_sigma
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -76,7 +76,7 @@ class Network:
         self.area_channels['input'] = INPUT_SIZE[0]
         self.area_size['input'] = INPUT_SIZE[1]
         
-        out_sigma = anet.find_layer('LGNv','').sigma
+        out_sigma = 1
         out_channels = np.floor(anet.find_layer('LGNv','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
         architecture.set_num_channels('LGNv', '', out_channels)
         self.area_channels['LGNv'] = out_channels
@@ -108,8 +108,7 @@ class Network:
             
             out_anat_layer = anet.find_layer(e[1].area, e[1].depth)
             
-           
-            out_sigma = out_anat_layer.sigma
+            out_sigma = get_out_sigma(e[0].area, e[0].depth, e[1].area, e[1].depth)
             out_size = in_size * out_sigma
             self.area_size[e[1].area+e[1].depth] = out_size
             out_channels = np.floor(out_anat_layer.num/out_size**2)
