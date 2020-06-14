@@ -14,8 +14,13 @@ INPUT_GSW = 4 #Gaussian width of input to LGNv
 OUTPUT_AREAS = ['VISp5', 'VISl5', 'VISrl5', 'VISli5', 'VISpl5', 'VISal5', 'VISpor5']
 
 
-def get_output_shrinkage(area, depth):
-    if depth == '4':
-        if area!='LGNv' and area!='VISp' and area!='VISpor':
+def get_out_sigma(source_area, source_depth, target_area, target_depth):
+    if target_depth == '4':
+        if target_area != 'VISp' and target_area != 'VISpor':
             return 1/2
+        if target_area == 'VISpor':
+            if source_area == 'VISp':
+                return 1/2    
     return 1
+
+
