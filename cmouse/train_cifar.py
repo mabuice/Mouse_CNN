@@ -9,7 +9,7 @@ from config import *
 from train_config import *
 from anatomy import *
 from network import *
-from mousenet_v1 import *
+from mousenet_complete import MouseNetComplete
 from fsimilarity import *
 import random
 import wandb
@@ -97,7 +97,7 @@ def test(args, model, device, test_loader, epoch):
         if epoch == 0:
             torch.save(state, save_dir + '%s_init.pt'%(SEED))
         else:
-            torch.save(state, save_dir + '%s_best.pt'%(SEED))
+            torch.save(state, save_dir + '%s_%s.pt'%(SEED, acc))
         best_acc = acc
 
     # WandB - wandb.log(a_dict) logs the keys and values of the dictionary passed in and associates the values with a step.
@@ -195,7 +195,7 @@ torch.backends.cudnn.deterministic = True
 net_name = 'network_(%s,%s,%s)'%(INPUT_SIZE[0],INPUT_SIZE[1],INPUT_SIZE[2])
 architecture = Architecture(data_folder=DATA_DIR)
 net = gen_network(net_name, architecture)
-mousenet = MouseNet(net, mask=MASK, bn=1)
+mousenet = MouseNetComplete(net, mask=MASK)
 #mousenet = MouseNetV1(net, mask=MASK, bn=1)
 
 mousenet.to(device)

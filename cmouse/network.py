@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+from anatomy import gen_anatomy
 import torch
 from torch import nn
 from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_out_sigma

@@ -62,12 +62,12 @@ class Conv2dMask(nn.Conv2d):
                 re[i, j, :] = self.make_gaussian_kernel_mask(peak, sigma)
         return re
 
-class MouseNetComplete(nn.Module):
+class MouseNetCompletePool(nn.Module):
     """
     torch model constructed by parameters provided in network.
     """
     def __init__(self, network, mask=3):
-        super(MouseNetComplete, self).__init__()
+        super(MouseNetCompletePool, self).__init__()
         self.Convs = nn.ModuleDict()
         self.BNs = nn.ModuleDict()
         self.network = network
@@ -87,27 +87,31 @@ class MouseNetComplete(nn.Module):
 
         # calculate total size output to classifier
         total_size=0
+        
         for area in OUTPUT_AREAS:
-            if area =='VISp5':
-                layer = network.find_conv_source_target('VISp2/3','VISp5')
-                visp_out = layer.params.out_channels
-                # create 1x1 Conv downsampler for VISp5
-                visp_downsample_channels = 32
-                ds_stride = 2
-                self.visp5_downsampler = nn.Conv2d(visp_out, visp_downsample_channels, 1, stride=ds_stride)
-                total_size += INPUT_SIZE[1]/ds_stride * INPUT_SIZE[2]/ds_stride * visp_downsample_channels
-            else:
-                layer = network.find_conv_source_target('%s2/3'%area[:-1],'%s'%area)
-                total_size += int(layer.out_size*layer.out_size*layer.params.out_channels)
+            layer = network.find_conv_source_target('%s2/3'%area[:-1],'%s'%area)
+            total_size += int(16*layer.params.out_channels)
+        #     if area =='VISp5':
+        #         layer = network.find_conv_source_target('VISp2/3','VISp5')
+        #         visp_out = layer.params.out_channels
+        #         # create 1x1 Conv downsampler for VISp5
+        #         visp_downsample_channels = visp_out
+        #         ds_stride = 2
+        #         self.visp5_downsampler = nn.Conv2d(visp_out, visp_downsample_channels, 1, stride=ds_stride)
+        #         total_size += INPUT_SIZE[1]/ds_stride * INPUT_SIZE[2]/ds_stride * visp_downsample_channels
+        #     else:
+        #         layer = network.find_conv_source_target('%s2/3'%area[:-1],'%s'%area)
+        #         total_size += int(layer.out_size*layer.out_size*layer.params.out_channels)
         
         self.classifier = nn.Sequential(
-            nn.Linear(int(total_size), HIDDEN_LINEAR),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(HIDDEN_LINEAR, HIDDEN_LINEAR),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
+            nn.Linear(int(total_size), NUM_CLASSES),
+            # nn.Linear(int(total_size), HIDDEN_LINEAR),
+            # nn.ReLU(True),
+            # nn.Dropout(),
+            # nn.Linear(HIDDEN_LINEAR, HIDDEN_LINEAR),
+            # nn.ReLU(True),
+            # nn.Dropout(),
+            # nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
         )
 
     def get_img_feature(self, x, area_list, flatten=True):
@@ -148,13 +152,27 @@ class MouseNetComplete(nn.Module):
         else:
             re = None
             for area in area_list:
-                if area == 'VISp5':
-                    re=torch.flatten(self.visp5_downsampler(calc_graph['VISp5']), 1)
+                if re == None:
+                    re = torch.flatten(torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 1)
+                    # re = torch.flatten(
+                        # nn.ReLU(inplace=True)(self.BNs['%s_downsample'%area](self.Convs['%s_downsample'%area](calc_graph[area]))), 
+                        # 1)
                 else:
-                    if re is not None:
-                        re = torch.cat([torch.flatten(calc_graph[area], 1), re], axis=1)
-                    else:
-                        re = torch.flatten(calc_graph[area], 1)
+                    re=torch.cat([torch.flatten(    
+                        torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 
+                        1), re], axis=1)
+                    # re=torch.cat([
+                        # torch.flatten(
+                        # nn.ReLU(inplace=True)(self.BNs['%s_downsample'%area](self.Convs['%s_downsample'%area](calc_graph[area]))), 
+                        # 1), 
+                        # re], axis=1)
+                # if area == 'VISp5':
+                #     re=torch.flatten(self.visp5_downsampler(calc_graph['VISp5']), 1)
+                # else:
+                #     if re is not None:
+                #         re = torch.cat([torch.flatten(calc_graph[area], 1), re], axis=1)
+                #     else:
+                #         re = torch.flatten(calc_graph[area], 1)
         return re
 
     def forward(self, x):
