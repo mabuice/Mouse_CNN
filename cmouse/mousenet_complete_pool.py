@@ -152,7 +152,7 @@ class MouseNetCompletePool(nn.Module):
         else:
             re = None
             for area in area_list:
-                if re == None:
+                if re is None:
                     re = torch.flatten(torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 1)
                     # re = torch.flatten(
                         # nn.ReLU(inplace=True)(self.BNs['%s_downsample'%area](self.Convs['%s_downsample'%area](calc_graph[area]))), 

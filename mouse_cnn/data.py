@@ -21,9 +21,9 @@ class Data:
         """
         # return ['LGNd', 'VISp', 'VISal', 'VISpor']
 
-        return ['LGNd', 'VISp', 'VISl', 'VISpor']
+        #return ['LGNd', 'VISp', 'VISl', 'VISpor']
 
-        # return ['LGNd', 'VISp', 'VISl', 'VISrl', 'VISli', 'VISpl', 'VISal', 'VISpor']
+        return ['LGNd', 'VISp', 'VISl', 'VISrl', 'VISli', 'VISpl', 'VISal', 'VISpor']
     def get_layers(self):
         """
         :return: list of cortical layers included in model
