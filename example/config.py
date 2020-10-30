@@ -3,7 +3,7 @@ import argparse
 import os 
 
 INPUT_SIZE=(3,64,64)
-NUM_CLASSES = 10
+NUM_CLASSES = 1000
 HIDDEN_LINEAR = 2048
 
 EDGE_Z = 1 #Z-score (# standard deviations) of edge of kernel
