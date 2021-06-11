@@ -50,25 +50,59 @@ class Data:
         :param layer: layer name (e.g. '2/3')
         :return: estimate of number of excitatory neurons in given area/layer
         """
-        #TODO: compare with other estimates
+        numbers = { 'LGNd':21200,
+                    'VISp2/3': 173253,
+                    'VISl2/3': 22299,
+                    'VISrl2/3': 22598,
+                    'VISli2/3': 9587,
+                    'VISpl2/3': 17924,
+                    'VISal2/3': 15760,
+                    'VISpor2/3': 30576,
+                    'VISp4': 108623,
+                    'VISl4': 15501,
+                    'VISrl4': 14360,
+                    'VISli4': 5620,
+                    'VISpl4': 3912,
+                    'VISal4': 9705,
+                    'VISpor4': 5952,
+                    'VISp5': 134530,
+                    'VISl5': 20826,
+                    'VISrl5': 19173,
+                    'VISli5': 11611,
+                    'VISpl5': 20041,
+                    'VISal5': 15939,
+                    'VISpor5': 30230}
+        if area == 'LGNd':
+            region = area
+        else:
+            region = '%s%s'%(area, layer) 
+        return numbers[region]
 
-        if area in ['VISrl', 'VISli', 'VISpor']:
-            # Ero et al. doesn't include these estimates, so we approximate from
-            # density of VISl. Specifically we multiply the estimate from VISl by
-            # the ratio of surface areas of L2/3. Surface areas estimated from
-            # convex hull of flat map of voxels.
+    # def get_num_neurons(self, area, layer):
+    #     """
+    #     :param area: visual area name (e.g. 'VISp')
+    #     :param layer: layer name (e.g. '2/3')
+    #     :return: estimate of number of excitatory neurons in given area/layer
+    #     """
+    #     #TODO: compare with other estimates
 
-            surface_areas_23 = {
-                'VISl': 0.9279064282165419,
-                'VISrl': 0.698045549856564,
-                'VISli': 0.43560916751267514,
-                'VISpor': 1.3936554078054724
-            }
+    #     if area in ['VISrl', 'VISli', 'VISpor']:
+    #         # Ero et al. doesn't include these estimates, so we approximate from
+    #         # density of VISl. Specifically we multiply the estimate from VISl by
+    #         # the ratio of surface areas of L2/3. Surface areas estimated from
+    #         # convex hull of flat map of voxels.
 
-            ratio = surface_areas_23[area] / surface_areas_23['VISl']
-            return self.e18.get_n_excitatory('VISl', layer) * ratio
+    #         surface_areas_23 = {
+    #             'VISl': 0.9279064282165419,
+    #             'VISrl': 0.698045549856564,
+    #             'VISli': 0.43560916751267514,
+    #             'VISpor': 1.3936554078054724
+    #         }
 
-        return self.e18.get_n_excitatory(area, layer)
+    #         ratio = surface_areas_23[area] / surface_areas_23['VISl']
+    #         return self.e18.get_n_excitatory('VISl', layer) * ratio
+
+    #     return self.e18.get_n_excitatory(area, layer)
 
     def get_extrinsic_in_degree(self, target_area, target_layer):
         """

@@ -69,7 +69,7 @@ class Architecture(Data):
             #np.sum(probability) * source_channels = e_ij
             d_p = e_ij / source_channels / np.sum(np.exp(-radius**2/2/d_w **2))
 
-            print(d_p)
+            print('%s%s->%s%s: dw=%s, dp=%s'%(source_area,  source_layer,  target_area, target_layer, d_w, d_p))
             # check = d_p * source_channels * 2 * np.pi * d_w ** 2
             # print('e_ij {} d_w {} d_p {} source_channels {} e {}'.format(e_ij, d_w, d_p, source_channels, check))
             return d_p
@@ -83,7 +83,7 @@ class Architecture(Data):
         else: # from mesoscale model
             target = self.targets[_get_name(target_area, target_layer)]
             width_mm = target.get_kernel_width_mm(_get_name(source_area, source_layer))
-            print(width_mm)
+            print('kernel width: %s mm, %s pixels'%(width_mm, width_mm * 1000 * self._get_pixels_per_micrometer(source_area, source_layer)))
             return width_mm * 1000 * self._get_pixels_per_micrometer(source_area, source_layer)
 
 
