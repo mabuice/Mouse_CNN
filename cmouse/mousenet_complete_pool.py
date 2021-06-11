@@ -128,10 +128,11 @@ class MouseNetCompletePool(nn.Module):
             if area == 'input':
                 continue
    
-            if area == 'LGNv':
-                layer = self.network.find_conv_source_target('input', 'LGNv')
+            if area == 'LGNd':
+                layer = self.network.find_conv_source_target('input', 'LGNd')
                 layer_name = layer.source_name + layer.target_name
-                calc_graph['LGNv'] = self.Convs[layer_name](x)
+                calc_graph['LGNd'] =  nn.ReLU(inplace=True)(self.BNs[area](self.Convs[layer_name](x)))
+                # calc_graph['LGNv'] =  self.Convs[layer_name](x)
                 continue
 
             for layer in self.network.layers:

@@ -86,9 +86,9 @@ def gen_anatomy(data, input_depths = ['4'],
     depths = data.get_layers()
     output_map = {} # collect output layers for each hierarchy
 
-    # create LGNv
+    # create LGNd
     hierarchy = 0
-    layer0 = AnatomicalLayer('LGNv', '', data.get_num_neurons('LGNv', None))
+    layer0 = AnatomicalLayer('LGNd', '', data.get_num_neurons('LGNd', None))
     anet.add_layer(layer0)
     output_map[0] = [layer0]
 

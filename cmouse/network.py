@@ -73,19 +73,19 @@ class Network:
         :param anet: anatomy class which contains anatomical connections
         :param architecture: architecture class which calls set_num_channels for calculating connection strength
         """
-        # construct conv layer for input -> LGNv
+        # construct conv layer for input -> LGNd
         self.area_channels['input'] = INPUT_SIZE[0]
         self.area_size['input'] = INPUT_SIZE[1]
         
         out_sigma = 1
-        out_channels = np.floor(anet.find_layer('LGNv','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
-        architecture.set_num_channels('LGNv', '', out_channels)
-        self.area_channels['LGNv'] = out_channels
+        out_channels = np.floor(anet.find_layer('LGNd','').num/out_sigma/INPUT_SIZE[1]/INPUT_SIZE[2])
+        architecture.set_num_channels('LGNd', '', out_channels)
+        self.area_channels['LGNd'] = out_channels
         
         out_size =  INPUT_SIZE[1] * out_sigma
-        self.area_size['LGNv'] = out_size
+        self.area_size['LGNd'] = out_size
        
-        convlayer = ConvLayer('input', 'LGNv', 
+        convlayer = ConvLayer('input', 'LGNd',
                               ConvParam(in_channels=INPUT_SIZE[0], 
                                         out_channels=out_channels,
                                         gsh=INPUT_GSH,
