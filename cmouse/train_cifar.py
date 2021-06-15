@@ -9,15 +9,15 @@ from config import *
 from train_config import *
 from anatomy import *
 from network import *
-from mousenet_complete import MouseNetComplete
+from mousenet_complete_pool import MouseNetCompletePool
 from fsimilarity import *
 import random
 import wandb
 import argparse
 
 parser = argparse.ArgumentParser(description='PyTorch %s Training' % DATASET)
-parser.add_argument('--seed', type=int, help='random seed')
-parser.add_argument('--mask', type=int, help='if use Gaussian mask')
+parser.add_argument('--seed', default = 42, type=int, help='random seed')
+parser.add_argument('--mask', default = 3, type=int, help='if use Gaussian mask')
 args = parser.parse_args()
 SEED = args.seed
 MASK = args.mask
@@ -195,8 +195,7 @@ torch.backends.cudnn.deterministic = True
 net_name = 'network_(%s,%s,%s)'%(INPUT_SIZE[0],INPUT_SIZE[1],INPUT_SIZE[2])
 architecture = Architecture(data_folder=DATA_DIR)
 net = gen_network(net_name, architecture)
-mousenet = MouseNetComplete(net, mask=MASK)
-#mousenet = MouseNetV1(net, mask=MASK, bn=1)
+mousenet = MouseNetCompletePool(net, mask=MASK)
 
 mousenet.to(device)
 
