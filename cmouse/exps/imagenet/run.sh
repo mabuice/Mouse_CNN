@@ -1,0 +1,1 @@
+python ../../main.py --seed 42  --mask 3 --fixmask=2021
