@@ -11,7 +11,7 @@ Interface to mouse data sources.
 
 class Data:
     def __init__(self, data_folder = 'data_files'):
-        self.e18 = Ero2018(data_folder)
+        # self.e18 = Ero2018(data_folder)
         self.p11 = Perin11()
         self.b19 = Billeh19()
 
@@ -161,59 +161,59 @@ class Data:
         return (55, 90)
 
 
-class Ero2018:
-    """
-    Data from supplementary material of:
+# class Ero2018:
+#     """
+#     Data from supplementary material of:
 
-    Erö, C., Gewaltig, M. O., Keller, D., & Markram, H. (2019). A Cell Atlas for the Mouse Brain.
-    Frontiers in Neuroinformatics, 13, 7.
-    """
+#     Erö, C., Gewaltig, M. O., Keller, D., & Markram, H. (2019). A Cell Atlas for the Mouse Brain.
+#     Frontiers in Neuroinformatics, 13, 7.
+#     """
 
-    def __init__(self, data_folder):
-        file_name = data_folder + '/Data_Sheet_1_A Cell Atlas for the Mouse Brain.CSV'
+#     def __init__(self, data_folder):
+#         file_name = data_folder + '/Data_Sheet_1_A Cell Atlas for the Mouse Brain.CSV'
 
-        if not os.path.isfile(file_name):
-            raise Exception('Missing data file {}, available from {}'.format(
-                file_name,
-                'https://www.frontiersin.org/articles/10.3389/fninf.2018.00084/full#supplementary-material'
-            ))
+#         if not os.path.isfile(file_name):
+#             raise Exception('Missing data file {}, available from {}'.format(
+#                 file_name,
+#                 'https://www.frontiersin.org/articles/10.3389/fninf.2018.00084/full#supplementary-material'
+#             ))
 
-        self.regions = []
-        self.excitatory = []
-        with open(file_name) as csvfile:
-            r = csv.reader(csvfile)
-            header_line = True
-            for row in r:
-                if header_line:
-                    header_line = False
-                else:
-                    self.regions.append(row[0])
-                    self.excitatory.append(row[4])
+#         self.regions = []
+#         self.excitatory = []
+#         with open(file_name) as csvfile:
+#             r = csv.reader(csvfile)
+#             header_line = True
+#             for row in r:
+#                 if header_line:
+#                     header_line = False
+#                 else:
+#                     self.regions.append(row[0])
+#                     self.excitatory.append(row[4])
 
-    def get_n_excitatory(self, area, layer=None):
-        area_map = {
-            'LGNd': 'Dorsal part of the lateral geniculate complex',
-            'LGNv': 'Ventral part of the lateral geniculate complex',
-            'VISal': 'Anterolateral visual area',
-            'VISam': 'Anteromedial visual area',
-            'VISl': 'Lateral visual area',
-            'VISp': 'Primary visual area',
-            'VISpl': 'Posterolateral visual area',
-            'VISpm': 'posteromedial visual area'
-        }
+#     def get_n_excitatory(self, area, layer=None):
+#         area_map = {
+#             'LGNd': 'Dorsal part of the lateral geniculate complex',
+#             'LGNv': 'Ventral part of the lateral geniculate complex',
+#             'VISal': 'Anterolateral visual area',
+#             'VISam': 'Anteromedial visual area',
+#             'VISl': 'Lateral visual area',
+#             'VISp': 'Primary visual area',
+#             'VISpl': 'Posterolateral visual area',
+#             'VISpm': 'posteromedial visual area'
+#         }
 
-        if layer is None:
-            index = self.regions.index(area_map[area])
-            result = np.int(self.excitatory[index])
-        elif layer == '6':
-            index_a = self.regions.index('{} layer 6a'.format(area_map[area]))
-            index_b = self.regions.index('{} layer 6a'.format(area_map[area]))
-            result = np.int(self.excitatory[index_a]) + np.int(self.excitatory[index_b])
-        else:
-            index = self.regions.index('{} layer {}'.format(area_map[area], layer))
-            result = np.int(self.excitatory[index])
+#         if layer is None:
+#             index = self.regions.index(area_map[area])
+#             result = np.int(self.excitatory[index])
+#         elif layer == '6':
+#             index_a = self.regions.index('{} layer 6a'.format(area_map[area]))
+#             index_b = self.regions.index('{} layer 6a'.format(area_map[area]))
+#             result = np.int(self.excitatory[index_a]) + np.int(self.excitatory[index_b])
+#         else:
+#             index = self.regions.index('{} layer {}'.format(area_map[area], layer))
+#             result = np.int(self.excitatory[index])
 
-        return result
+#         return result
 
 
 class Perin11:
