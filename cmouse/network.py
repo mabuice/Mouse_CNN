@@ -146,8 +146,8 @@ class Network:
         plt.figure(figsize=(12,12))
         pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
         nx.draw(G, pos, node_size=node_size, node_color=node_color, edge_color=edge_color,alpha=0.4)
-        nx.draw_networkx_labels(G, pos, node_label_dict, fontsize=1000,font_weight=640, alpha=0.7, font_color='black')
-        nx.draw_networkx_edge_labels(G, pos, edge_label_dict, fontsize=2000, font_weight=640,alpha=0.7, font_color='red')
+        nx.draw_networkx_labels(G, pos, node_label_dict, font_size=10,font_weight=640, alpha=0.7, font_color='black')
+        nx.draw_networkx_edge_labels(G, pos, edge_label_dict, font_size=20, font_weight=640,alpha=0.7, font_color='red')
         plt.show()  
 
 

@@ -1,7 +1,7 @@
 import os
 
-DATA_DIR = os.environ['DATA_DIR']
-RESULT_DIR = os.environ['RESULT_DIR']
+DATA_DIR = '../data'  #os.environ['DATA_DIR']
+RESULT_DIR = 'myresults'  #os.environ['RESULT_DIR']
 
 INPUT_SIZE=(3,64,64)
 NUM_CLASSES = 1000
