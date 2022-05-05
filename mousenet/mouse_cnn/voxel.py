@@ -2,8 +2,8 @@ import os
 import numpy as np
 import pickle
 from mcmodels.core import VoxelModelCache
-from mouse_cnn.flatmap import FlatMap
-from mouse_cnn.data import Data
+from mousenet.mouse_cnn.flatmap import FlatMap
+from mousenet.mouse_cnn.data import Data
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 from scipy.ndimage.filters import gaussian_filter

@@ -2,9 +2,9 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import svm
-from mouse_cnn.voxel import VoxelModel, is_multimodal_or_eccentric, fit_image, get_gaussian_fit
-from mouse_cnn.voxel import get_fraction_peak_at_center_of_mass, get_multimodal_depth_fraction
-from mouse_cnn.flatmap import FlatMap
+from mousenet.mouse_cnn.voxel import VoxelModel, is_multimodal_or_eccentric, fit_image, get_gaussian_fit
+from mousenet.mouse_cnn.voxel import get_fraction_peak_at_center_of_mass, get_multimodal_depth_fraction
+from mousenet.mouse_cnn.flatmap import FlatMap
 
 
 def save_example_kernels():
