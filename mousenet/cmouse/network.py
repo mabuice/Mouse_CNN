@@ -1,9 +1,9 @@
 import numpy as np
 import networkx as nx
-from anatomy import gen_anatomy
+from .anatomy import gen_anatomy
 import torch
 from torch import nn
-from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_out_sigma
+from .exps.imagenet.config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_out_sigma
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -166,7 +166,7 @@ def load_network_from_pickle(file_path):
     net = pickle.load(f)
     return net
 
-def gen_network(net_name, architecture, data_folder=''):
+def gen_network(net_name, architecture):
     file_path = './myresults/%s.pkl'%net_name
     if os.path.exists(file_path):
         net = load_network_from_pickle(file_path)

@@ -158,7 +158,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if NET == 1:
         net_name = 'network_complete_updated_number(%s,%s,%s)'%(INPUT_SIZE[0],INPUT_SIZE[1],INPUT_SIZE[2])
-        architecture = Architecture(data_folder=DATA_DIR)
+        architecture = Architecture()
         net = gen_network(net_name, architecture)
         if FIXMASK != 0:
             np.random.seed(FIXMASK)

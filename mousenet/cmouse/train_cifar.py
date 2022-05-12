@@ -193,7 +193,7 @@ torch.backends.cudnn.deterministic = True
 
 # get the mouse network
 net_name = 'network_(%s,%s,%s)'%(INPUT_SIZE[0],INPUT_SIZE[1],INPUT_SIZE[2])
-architecture = Architecture(data_folder=DATA_DIR)
+architecture = Architecture()
 net = gen_network(net_name, architecture)
 mousenet = MouseNetCompletePool(net, mask=MASK)
 

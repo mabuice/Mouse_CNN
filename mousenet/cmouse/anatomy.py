@@ -2,10 +2,7 @@ from collections import namedtuple
 import networkx as nx
 import matplotlib.pyplot as plt
 import sys
-sys.path.append('../')
-sys.path.append('../../')
-sys.path.append('../../../')
-from mouse_cnn.architecture import *
+from ..mouse_cnn.architecture import *
 # from config import get_output_shrinkage
 
 class AnatomicalLayer:

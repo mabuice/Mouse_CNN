@@ -10,7 +10,7 @@ Interface to mouse data sources.
 
 
 class Data:
-    def __init__(self, data_folder = 'data_files'):
+    def __init__(self):
         # self.e18 = Ero2018(data_folder)  # this data is no longer used
         self.p11 = Perin11()
         self.b19 = Billeh19()

@@ -2,7 +2,20 @@ import torch
 from torch import nn
 import networkx as nx
 import numpy as np
-from config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES
+from .exps.imagenet.config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES
+
+def get_retinotopic_mask(layer, retinomap):
+    mask = torch.zeros(32, 32)
+    for area in retinomap:
+        if area.lower() in layer:
+            normalized_polygon = area[1]
+            x, y = normalized_polygon.exterior.coords.xy
+            x, y = list(x), list(y)
+            mask[min(x):max(x), min(y), max(y)] = 1
+            return mask
+
+    raise ValueError(f"Could not find area for layer {layer} in retinomap")
+
 
 class Conv2dMask(nn.Conv2d):
     """
@@ -66,14 +79,24 @@ class MouseNetCompletePool(nn.Module):
     """
     torch model constructed by parameters provided in network.
     """
-    def __init__(self, network, mask=3):
+    def __init__(self, network, mask=3, retinomap=None):
         super(MouseNetCompletePool, self).__init__()
         self.Convs = nn.ModuleDict()
         self.BNs = nn.ModuleDict()
         self.network = network
+        self.layer_masks = nn.ModuleDict()
+        self.retinomap = retinomap
         
         G, _ = network.make_graph()
         self.top_sort = list(nx.topological_sort(G))
+
+
+        if self.retinomap is not None:
+            for layer in self.top_sort:
+                self.layer_masks[layer] = get_retinotopic_mask(layer)
+        else:
+            for layer in self.top_sort:
+                self.layer_masks[layer] = torch.ones(32, 32) 
 
         for layer in network.layers:
             params = layer.params
@@ -131,17 +154,28 @@ class MouseNetCompletePool(nn.Module):
             if area == 'LGNd' or area == 'LGNv':
                 layer = self.network.find_conv_source_target('input', area)
                 layer_name = layer.source_name + layer.target_name
-                calc_graph[area] =  nn.ReLU(inplace=True)(self.BNs[area](self.Convs[layer_name](x)))
+                calc_graph[area] =  nn.ReLU(inplace=True)(
+                        self.BNs[area](
+                            self.Convs[layer_name](x)
+                        )
+                    )
                 continue
 
             for layer in self.network.layers:
                 if layer.target_name == area:
+                    mask = self.layer_masks[layer.source_name]
                     layer_name = layer.source_name + layer.target_name
                     if area not in calc_graph:
-                        calc_graph[area] = self.Convs[layer_name](calc_graph[layer.source_name])
+                        calc_graph[area] = self.Convs[layer_name](
+                                mask(calc_graph[layer.source_name])
+                            )
                     else:
                         calc_graph[area] = calc_graph[area] + self.Convs[layer_name](calc_graph[layer.source_name])
-            calc_graph[area] = nn.ReLU(inplace=True)(self.BNs[area](calc_graph[area]))
+                        calc_graph[area] = nn.ReLU(inplace=True)(
+                            self.BNs[area](
+                                mask(calc_graph[area])
+                            )
+                        )
         
         if len(area_list) == 1:
             if flatten:

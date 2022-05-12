@@ -12,6 +12,8 @@ dependencies:
   - pandas
   - pytest
   - flake8
+  - networkx
+  - network
   - rope
   - autopep8
   - black

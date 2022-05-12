@@ -1,7 +1,7 @@
 import numpy as np
-from config import EDGE_Z
-from mouse_cnn.data import Data
-from mouse_cnn.voxel import Target, get_surface_area_mm2
+from ..cmouse.exps.imagenet.config import EDGE_Z
+from .data import Data
+from .voxel import Target, get_surface_area_mm2
 
 # TODO: review hard-coded values for LGN
 
@@ -14,9 +14,9 @@ class Architecture(Data):
     width estimates in micrometers to kernel width estimates in pixels.
     """
 
-    def __init__(self, data_folder='data_files'):
-        super(Architecture, self).__init__(data_folder=data_folder)
-        self.targets = _get_targets(self, data_folder=data_folder)
+    def __init__(self):
+        super(Architecture, self).__init__()
+        self.targets = _get_targets(self)
         self.channels = {}
 
     def set_num_channels(self, area, layer, channels):
@@ -91,14 +91,14 @@ def _get_name(area, layer):
     return area + layer
 
 
-def _get_targets(data, data_folder='data_files/'):
+def _get_targets(data):
     # build dictionary of voxel.Target instances per target layer
     targets = {}
     for area in data.get_areas():
         if data.get_hierarchical_level(area) > 0:
             for layer in data.get_layers():
                 in_degree = data.get_extrinsic_in_degree(area, layer)
-                targets[_get_name(area, layer)] = Target(area, layer, external_in_degree=in_degree, data_folder=data_folder)
+                targets[_get_name(area, layer)] = Target(area, layer, external_in_degree=in_degree)
     return targets 
 
 
