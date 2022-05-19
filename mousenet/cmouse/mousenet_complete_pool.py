@@ -1,20 +1,39 @@
+from copyreg import pickle
 import torch
 from torch import nn
 import networkx as nx
 import numpy as np
+import pathlib, os
+import pickle
 from .exps.imagenet.config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES
 
 def get_retinotopic_mask(layer, retinomap):
     mask = torch.zeros(32, 32)
+    if layer == "input":
+        return
+    if layer == "VisP":
+        return mask
+
     for area in retinomap:
-        if area.lower() in layer:
+        area_name = area[0].lower()
+        if area_name == ''.join(x for x in layer.lower() if x.isalpha()):
             normalized_polygon = area[1]
             x, y = normalized_polygon.exterior.coords.xy
             x, y = list(x), list(y)
-            mask[min(x):max(x), min(y), max(y)] = 1
+            xshift= yshift = int(0)
+            if area_name != "visp":
+                xshift = int((max(x) - min(x))/4)
+                yshift = int((max(y) - min(y))/4)
+            x1, x2 = int(max(min(x)+xshift, 0)), int(min(max(x) - xshift, 32))
+            y1, y2 = int(max(min(y) + yshift, 0)), int(min(max(y) - yshift, 32))
+            mask[x1:x2, y1:y2] = 1
+            mask_sum = mask.sum()
+            project_root = pathlib.Path(__file__).parent.parent.resolve()
+            file = os.path.join(project_root, "retinotopics", "mask_areas", f"{area_name}.pkl")
+            pickle.dump(mask_sum, open(file,"wb"))
             return mask
 
-    raise ValueError(f"Could not find area for layer {layer} in retinomap")
+    # raise ValueError(f"Could not find area for layer {layer} in retinomap")
 
 
 class Conv2dMask(nn.Conv2d):
@@ -84,7 +103,7 @@ class MouseNetCompletePool(nn.Module):
         self.Convs = nn.ModuleDict()
         self.BNs = nn.ModuleDict()
         self.network = network
-        self.layer_masks = nn.ModuleDict()
+        self.layer_masks = dict()
         self.retinomap = retinomap
         
         G, _ = network.make_graph()
@@ -93,7 +112,7 @@ class MouseNetCompletePool(nn.Module):
 
         if self.retinomap is not None:
             for layer in self.top_sort:
-                self.layer_masks[layer] = get_retinotopic_mask(layer)
+                self.layer_masks[layer] = get_retinotopic_mask(layer, self.retinomap)
         else:
             for layer in self.top_sort:
                 self.layer_masks[layer] = torch.ones(32, 32) 
@@ -167,13 +186,13 @@ class MouseNetCompletePool(nn.Module):
                     layer_name = layer.source_name + layer.target_name
                     if area not in calc_graph:
                         calc_graph[area] = self.Convs[layer_name](
-                                mask(calc_graph[layer.source_name])
+                                mask*calc_graph[layer.source_name]
                             )
                     else:
                         calc_graph[area] = calc_graph[area] + self.Convs[layer_name](calc_graph[layer.source_name])
                         calc_graph[area] = nn.ReLU(inplace=True)(
                             self.BNs[area](
-                                mask(calc_graph[area])
+                                mask*calc_graph[area]
                             )
                         )
         
@@ -186,6 +205,7 @@ class MouseNetCompletePool(nn.Module):
         else:
             re = None
             for area in area_list:
+                print(area, (calc_graph[area]).shape)
                 if re is None:
                     re = torch.flatten(torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 1)
                     # re = torch.flatten(

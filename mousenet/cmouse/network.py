@@ -7,7 +7,8 @@ from .exps.imagenet.config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_
 import os
 import pickle
 import matplotlib.pyplot as plt
-
+import pathlib
+import pdb
 class ConvParam:
     def __init__(self, in_channels, out_channels, gsh, gsw, out_sigma):
         """
@@ -50,10 +51,11 @@ class Network:
     """
     network class that contains all conv paramters needed to construct torch model.
     """
-    def __init__(self):
+    def __init__(self, retinotopic=False):
         self.layers = []
         self.area_channels = {}
         self.area_size = {}
+        self.retinotopic = retinotopic
         
     def find_conv_source_target(self, source_name, target_name):
         for layer in self.layers:
@@ -113,6 +115,15 @@ class Network:
             out_size = in_size * out_sigma
             self.area_size[e[1].area+e[1].depth] = out_size
             out_channels = np.floor(out_anat_layer.num/out_size**2)
+            if self.retinotopic:
+                project_root = pathlib.Path(__file__).parent.parent.resolve()
+                mask_pickle = ''.join(x for x in in_layer_name.lower() if x.isalpha())
+                mask_path = os.path.join(project_root, "retinotopics", "mask_areas", f"{mask_pickle}.pkl")
+                if os.path.exists(mask_path):
+                    mask_size = pickle.load(open(mask_path, "rb"))
+                    out_channels = out_channels*int((32*32)/mask_size)
+
+
             
             architecture.set_num_channels(e[1].area, e[1].depth, out_channels)
             self.area_channels[e[1].area+e[1].depth] = out_channels

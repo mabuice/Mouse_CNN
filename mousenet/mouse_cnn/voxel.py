@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pickle
+import pathlib
 from mcmodels.core import VoxelModelCache
 from .flatmap import FlatMap
 from .data import Data
@@ -17,32 +18,22 @@ Code for estimating density profiles of inter-area connections from voxel model
 of mouse connectome (Knox et al. 2019).
 """
 
-
+def get_data_folder():
+    project_root = pathlib.Path(__file__).parent.resolve().parent.absolute()
+    return os.path.join(project_root, 'data_files')
 class VoxelModel():
     # we make a shared instance because the model's state doesn't change
     # but it takes several seconds to instantiate, so we only want to do it once
     _instance = None
 
-    def __init__(self, data_folder='data_files/'):
-        cache = VoxelModelCache(manifest_file='connectivity/voxel_model_manifest.json')
+    def __init__(self):
+        manifest_file = os.path.join(get_data_folder(), "voxel_model_manifest.json")
+        cache = VoxelModelCache(manifest_file=manifest_file)
         self.source_mask = cache.get_source_mask()
         self.source_keys = self.source_mask.get_key(structure_ids=None)
 
-        weight_file = data_folder + '/voxel-weights.pkl'
-        node_file = data_folder + '/voxel-nodes.pkl'
-        if os.path.isfile(weight_file) and os.path.isfile(node_file):
-            with open(weight_file, 'rb') as file:
-                self.weights = pickle.load(file)
-            with open(node_file, 'rb') as file:
-                self.nodes = pickle.load(file)
-        else:
-            print('Loading weights from cache (takes several minutes) ...')
-            self.weights = cache.get_weights()
-            self.nodes = cache.get_nodes()
-            with open(weight_file, 'wb') as file:
-                pickle.dump(self.weights, file)
-            with open(node_file, 'wb') as file:
-                pickle.dump(self.nodes, file)
+        self.weights = cache.get_weights()
+        self.nodes = cache.get_nodes()
         self.structure_tree = cache.get_structure_tree()
 
     def get_weights(self, source_name, target_name):
@@ -76,12 +67,12 @@ class VoxelModel():
         return pre_positions
 
     @staticmethod
-    def get_instance(data_folder='data_files/'):
+    def get_instance():
         """
         :return: Shared instance of VoxelModel
         """
         if VoxelModel._instance is None:
-            VoxelModel._instance = VoxelModel(data_folder=data_folder)
+            VoxelModel._instance = VoxelModel()
         return VoxelModel._instance
 
 
@@ -103,19 +94,19 @@ class Target():
     be true either, but it allows us to estimate numbers of connections from voxel weights.
     """
 
-    def __init__(self, area, layer, external_in_degree, data_folder='data_files/'):
+    def __init__(self, area, layer, external_in_degree):
         """
         :param area: name of area
         :param layer: name of layer
         :param external_in_degree: Total neurons providing feedforward input to average
             neuron, from other cortical areas.
         """
-        self.data_folder=data_folder
+        self.data_folder=get_data_folder()
         self.target_area = area
         self.target_name = area + layer
         self.e = external_in_degree
 
-        self.voxel_model = VoxelModel.get_instance(data_folder=data_folder)
+        self.voxel_model = VoxelModel.get_instance()
         self.num_voxels = len(self.voxel_model.get_positions(self.target_name))
 
         self.gamma = None # scale factor for total inbound voxel weight -> extrinsic in-degree
@@ -129,7 +120,7 @@ class Target():
             including only lower areas in the visual hierarchy
         """
         self.source_names = []
-        data = Data(data_folder=self.data_folder)
+        data = Data()
         for area in data.get_areas():
             if data.get_hierarchical_level(area) < data.get_hierarchical_level(self.target_area):
                 if 'LGN' not in area: #TODO: handle LGN->VISp as special case
