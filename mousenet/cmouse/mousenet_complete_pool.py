@@ -6,17 +6,19 @@ import numpy as np
 import pathlib, os
 import pickle
 from .exps.imagenet.config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES
+import pdb
 
 def get_retinotopic_mask(layer, retinomap):
+    region_name = ''.join(x for x in layer.lower() if x.isalpha())
     mask = torch.zeros(32, 32)
     if layer == "input":
         return
-    if layer == "VisP":
-        return mask
+    if region_name == "visp":
+        return 1
 
     for area in retinomap:
         area_name = area[0].lower()
-        if area_name == ''.join(x for x in layer.lower() if x.isalpha()):
+        if area_name == region_name:
             normalized_polygon = area[1]
             x, y = normalized_polygon.exterior.coords.xy
             x, y = list(x), list(y)
@@ -31,6 +33,8 @@ def get_retinotopic_mask(layer, retinomap):
             project_root = pathlib.Path(__file__).parent.parent.resolve()
             file = os.path.join(project_root, "retinotopics", "mask_areas", f"{area_name}.pkl")
             pickle.dump(mask_sum, open(file,"wb"))
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            mask.to(device)
             return mask
 
     # raise ValueError(f"Could not find area for layer {layer} in retinomap")
@@ -182,8 +186,16 @@ class MouseNetCompletePool(nn.Module):
 
             for layer in self.network.layers:
                 if layer.target_name == area:
-                    mask = self.layer_masks[layer.source_name]
+                    mask = None
+                    if layer.source_name in self.layer_masks:
+                        mask = self.layer_masks[layer.source_name]
+                    if mask is None:
+                        mask = 1
                     layer_name = layer.source_name + layer.target_name
+                    if isinstance(mask, int):
+                        print(area, mask)
+                    else:
+                        print(area, mask.shape)
                     if area not in calc_graph:
                         calc_graph[area] = self.Convs[layer_name](
                                 mask*calc_graph[layer.source_name]

@@ -12,9 +12,9 @@ import os, pdb
 
 def generate_net(retinotopic=False):
     root = pathlib.Path(__file__).parent.resolve()
-    cached = os.path.join(root, "data_files", "net_cache.pkl")
-    # if os.path.isfile(cached):
-    #     return network.load_network_from_pickle(cached)
+    cached = os.path.join(root, "data_files", f"net_cache_{'retino' if retinotopic else ''}.pkl")
+    if os.path.isfile(cached):
+        return network.load_network_from_pickle(cached)
     architecture = Architecture()
     anet = gen_anatomy(architecture)
     net = network.Network(retinotopic=retinotopic)
@@ -43,8 +43,6 @@ def load(architecture, pretraining=None):
         with open(os.path.join(path, "retinotopics", "retinomap.pkl"), "rb") as file:
             retinomap = pickle.load(file)
     
-    if architecture=="retinotopic":
-        pdb.set_trace()
     model = MouseNetCompletePool(net, retinomap = retinomap)
     
 
