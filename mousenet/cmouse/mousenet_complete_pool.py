@@ -107,19 +107,19 @@ class MouseNetCompletePool(nn.Module):
         self.Convs = nn.ModuleDict()
         self.BNs = nn.ModuleDict()
         self.network = network
-        self.layer_masks = dict()
+        # self.layer_masks = dict()
         self.retinomap = retinomap
         
         G, _ = network.make_graph()
         self.top_sort = list(nx.topological_sort(G))
 
 
-        if self.retinomap is not None:
-            for layer in self.top_sort:
-                self.layer_masks[layer] = get_retinotopic_mask(layer, self.retinomap)
-        else:
-            for layer in self.top_sort:
-                self.layer_masks[layer] = torch.ones(32, 32) 
+        # if self.retinomap is not None:
+        #     for layer in self.top_sort:
+        #         self.layer_masks[layer] = get_retinotopic_mask(layer, self.retinomap)
+        # else:
+        #     for layer in self.top_sort:
+        #         self.layer_masks[layer] = torch.ones(32, 32) 
 
         for layer in network.layers:
             params = layer.params
@@ -149,8 +149,8 @@ class MouseNetCompletePool(nn.Module):
         #         layer = network.find_conv_source_target('%s2/3'%area[:-1],'%s'%area)
         #         total_size += int(layer.out_size*layer.out_size*layer.params.out_channels)
         
-        self.classifier = nn.Sequential(
-            nn.Linear(int(total_size), NUM_CLASSES),
+        # self.classifier = nn.Sequential(
+            # nn.Linear(int(total_size), NUM_CLASSES),
             # nn.Linear(int(total_size), HIDDEN_LINEAR),
             # nn.ReLU(True),
             # nn.Dropout(),
@@ -158,9 +158,9 @@ class MouseNetCompletePool(nn.Module):
             # nn.ReLU(True),
             # nn.Dropout(),
             # nn.Linear(HIDDEN_LINEAR, NUM_CLASSES),
-        )
+        # )
 
-    def get_img_feature(self, x, area_list, flatten=True):
+    def get_img_feature(self, x, area_list, flatten=False):
         """
         function for get activations from a list of layers for input x
         :param x: input image set Tensor with size (num_img, INPUT_SIZE[0], INPUT_SIZE[1], INPUT_SIZE[2])
@@ -186,25 +186,25 @@ class MouseNetCompletePool(nn.Module):
 
             for layer in self.network.layers:
                 if layer.target_name == area:
-                    mask = None
-                    if layer.source_name in self.layer_masks:
-                        mask = self.layer_masks[layer.source_name]
-                    if mask is None:
-                        mask = 1
+                    # mask = None
+                    # if layer.source_name in self.layer_masks:
+                    #     mask = self.layer_masks[layer.source_name]
+                    # if mask is None:
+                    #     mask = 1
                     layer_name = layer.source_name + layer.target_name
-                    if isinstance(mask, int):
-                        print(area, mask)
-                    else:
-                        print(area, mask.shape)
+                    # if isinstance(mask, int):
+                    #     print(area, mask)
+                    # else:
+                    #     print(area, mask.shape)
                     if area not in calc_graph:
                         calc_graph[area] = self.Convs[layer_name](
-                                mask*calc_graph[layer.source_name]
+                                calc_graph[layer.source_name]
                             )
                     else:
                         calc_graph[area] = calc_graph[area] + self.Convs[layer_name](calc_graph[layer.source_name])
                         calc_graph[area] = nn.ReLU(inplace=True)(
                             self.BNs[area](
-                                mask*calc_graph[area]
+                                calc_graph[area]
                             )
                         )
         
@@ -217,16 +217,13 @@ class MouseNetCompletePool(nn.Module):
         else:
             re = None
             for area in area_list:
-                print(area, (calc_graph[area]).shape)
                 if re is None:
-                    re = torch.flatten(torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 1)
+                    re = torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area])
                     # re = torch.flatten(
                         # nn.ReLU(inplace=True)(self.BNs['%s_downsample'%area](self.Convs['%s_downsample'%area](calc_graph[area]))), 
                         # 1)
                 else:
-                    re=torch.cat([torch.flatten(    
-                        torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), 
-                        1), re], axis=1)
+                    re=torch.cat([torch.nn.AdaptiveAvgPool2d(4) (calc_graph[area]), re], axis=1)
                     # re=torch.cat([
                         # torch.flatten(
                         # nn.ReLU(inplace=True)(self.BNs['%s_downsample'%area](self.Convs['%s_downsample'%area](calc_graph[area]))), 
@@ -242,6 +239,6 @@ class MouseNetCompletePool(nn.Module):
         return re
 
     def forward(self, x):
-        x = self.get_img_feature(x, OUTPUT_AREAS)
-        x = self.classifier(x)
+        x = self.get_img_feature(x, OUTPUT_AREAS, flatten=False)
+        # x = self.classifier(x)
         return x
