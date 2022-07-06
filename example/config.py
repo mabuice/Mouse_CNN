@@ -13,14 +13,22 @@ INPUT_GSW = 4 #Gaussian width of input to LGNv
 #OUTPUT_AREAS = ['VISpor5']
 OUTPUT_AREAS = ['VISp5', 'VISl5', 'VISrl5', 'VISli5', 'VISpl5', 'VISal5', 'VISpor5']
 
+SUBFIELDS = False # use area-specific visual subfields
+
 
 def get_out_sigma(source_area, source_depth, target_area, target_depth):
-    if target_depth == '4':
-        if target_area != 'VISp' and target_area != 'VISpor':
-            return 1/2
-        if target_area == 'VISpor':
-            if source_area == 'VISp':
-                return 1/2    
-    return 1
+    source_resolution = get_resolution(source_area, source_depth)
+    target_resolution = get_resolution(target_area, target_depth)
+    return target_resolution / source_resolution
 
 
+def get_resolution(area, depth):
+    """
+    :param area: cortical visual area name
+    :param depth: layer name
+    :return: model resolution in pixels per degree visual angle
+    """
+    if area == 'VISp' or area == 'LGNd':
+        return 1
+    else:
+        return 0.5

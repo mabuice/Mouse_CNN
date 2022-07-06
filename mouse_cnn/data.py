@@ -160,6 +160,32 @@ class Data:
         # offsets, but we defer this aspect to future models.
         return (55, 90)
 
+    def get_visual_field(self, area):
+        """
+        Rectangular approximation of visual field of an area, based on Figure 8 of Zhuang et al.,
+        “An extended retinotopic map of mouse cortex,” Elife, p. e18372, 2017. This area is the
+        extent of RF centers.
+
+        :param area: visual area name
+        :return: [min_azimuth, max_azimuth, min_altitude, max_altitude]
+        """
+        fields = { # TODO: these are approximate numbers
+            'VISp': [0, 85, -25, 35],
+            'VISrl': [7, 53, -23, 12],
+            'VISal': [17, 46, 0, 15],
+            'VISl': [3, 40, 2, 28],
+            'VISli': [28, 42, -4, 30],
+            'VISpl': [34, 85, 12, 32],
+            'VISpor': [26, 46, -5, 4],
+            'VISam': [41, 60, -21, 5],
+            'VISpm': [37, 82, -10, 6]
+        }
+
+        if area in fields:
+            return fields[area]
+        else:
+            raise Exception('Unknown visual field for area' + area)
+
 
 # class Ero2018:
 #     """

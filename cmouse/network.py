@@ -3,7 +3,7 @@ import networkx as nx
 from anatomy import gen_anatomy
 import torch
 from torch import nn
-from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, get_out_sigma
+from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, SUBFIELDS, get_out_sigma, get_resolution
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -112,8 +112,13 @@ class Network:
             out_sigma = get_out_sigma(e[0].area, e[0].depth, e[1].area, e[1].depth)
             out_size = in_size * out_sigma
             self.area_size[e[1].area+e[1].depth] = out_size
-            out_channels = np.floor(out_anat_layer.num/out_size**2)
-            
+
+            if SUBFIELDS:
+                pixel_area = calculate_pixel_area_with_visual_field(architecture, e[1].area, e[1].depth)
+                out_channels = np.floor(out_anat_layer.num / pixel_area)
+            else:
+                out_channels = np.floor(out_anat_layer.num/out_size**2)
+
             architecture.set_num_channels(e[1].area, e[1].depth, out_channels)
             self.area_channels[e[1].area+e[1].depth] = out_channels
             
@@ -149,6 +154,15 @@ class Network:
         nx.draw_networkx_labels(G, pos, node_label_dict, font_size=10,font_weight=640, alpha=0.7, font_color='black')
         nx.draw_networkx_edge_labels(G, pos, edge_label_dict, font_size=20, font_weight=640,alpha=0.7, font_color='red')
         plt.show()  
+
+
+def calculate_pixel_area_with_visual_field(architecture, area, depth):
+    out_field = architecture.get_visual_field(area)
+    out_width_degrees = out_field[1] - out_field[0]
+    out_height_degrees = out_field[3] - out_field[2]
+    out_pixels_per_degree = get_resolution(area, depth)
+    out_area_pixels_squared = out_width_degrees * out_height_degrees * out_pixels_per_degree ** 2
+    return out_area_pixels_squared
 
 
 def gen_network_from_anatomy(architecture):
