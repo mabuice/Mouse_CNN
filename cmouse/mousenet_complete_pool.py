@@ -1,8 +1,10 @@
 import torch
 from torch import nn
 import networkx as nx
+import re
 import numpy as np
-from config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES
+from example.config import  INPUT_SIZE, EDGE_Z, OUTPUT_AREAS, HIDDEN_LINEAR, NUM_CLASSES, get_resolution, INPUT_CORNER, SUBFIELDS
+from mouse_cnn.data import Data
 
 class Conv2dMask(nn.Conv2d):
     """
@@ -71,6 +73,7 @@ class MouseNetCompletePool(nn.Module):
         self.Convs = nn.ModuleDict()
         self.BNs = nn.ModuleDict()
         self.network = network
+        self.sub_indices = {}
         
         G, _ = network.make_graph()
         self.top_sort = list(nx.topological_sort(G))
@@ -85,6 +88,9 @@ class MouseNetCompletePool(nn.Module):
             if layer.target_name not in self.BNs:
                 self.BNs[layer.target_name] = nn.BatchNorm2d(params.out_channels)
 
+            self.sub_indices[layer.source_name + layer.target_name] = get_subsample_indices(layer)
+
+        print(self.sub_indices)
         # calculate total size output to classifier
         total_size=0
         
@@ -131,16 +137,31 @@ class MouseNetCompletePool(nn.Module):
             if area == 'LGNd' or area == 'LGNv':
                 layer = self.network.find_conv_source_target('input', area)
                 layer_name = layer.source_name + layer.target_name
-                calc_graph[area] =  nn.ReLU(inplace=True)(self.BNs[area](self.Convs[layer_name](x)))
+
+                if SUBFIELDS:
+                    left, width, bottom, height = self.sub_indices[layer_name]
+                    source_field = torch.narrow(torch.narrow(x, 2, left, width), 3, bottom, height) #TODO: check top/bottom direction
+                    calc_graph[area] =  nn.ReLU(inplace=True)(self.BNs[area](self.Convs[layer_name](source_field)))
+                else:
+                    calc_graph[area] =  nn.ReLU(inplace=True)(self.BNs[area](self.Convs[layer_name](x)))
+
                 continue
 
             for layer in self.network.layers:
                 if layer.target_name == area:
                     layer_name = layer.source_name + layer.target_name
-                    if area not in calc_graph:
-                        calc_graph[area] = self.Convs[layer_name](calc_graph[layer.source_name])
+
+                    if SUBFIELDS:
+                        left, width, bottom, height = self.sub_indices[layer_name] #TODO: incorporate padding here
+                        source_field = torch.narrow(torch.narrow(calc_graph[layer.source_name], 2, left, width), 3, bottom, height)
+                        layer_output = self.Convs[layer_name](source_field)
                     else:
-                        calc_graph[area] = calc_graph[area] + self.Convs[layer_name](calc_graph[layer.source_name])
+                        layer_output = self.Convs[layer_name](calc_graph[layer.source_name])
+
+                    if area not in calc_graph:
+                        calc_graph[area] = layer_output
+                    else:
+                        calc_graph[area] = calc_graph[area] + layer_output
             calc_graph[area] = nn.ReLU(inplace=True)(self.BNs[area](calc_graph[area]))
         
         if len(area_list) == 1:
@@ -179,3 +200,45 @@ class MouseNetCompletePool(nn.Module):
         x = self.get_img_feature(x, OUTPUT_AREAS)
         x = self.classifier(x)
         return x
+
+
+def get_subsample_indices(layer):
+    data = Data()
+
+    source_area = re.split('[^[a-zA-Z]]*', layer.source_name)[0]
+    source_depth = layer.source_name[len(source_area):]
+    source_resolution = get_resolution(source_area, source_depth)
+    target_area = re.split('[^[a-zA-Z]]*', layer.target_name)[0]
+
+    # calculate visual field corners of input assuming input image is one pixel per degree
+    image_width = INPUT_SIZE[1]
+    image_height = INPUT_SIZE[2]
+    input_field = [INPUT_CORNER[0], INPUT_CORNER[0] + image_width, INPUT_CORNER[1], INPUT_CORNER[1]+image_height]
+
+    if source_area == 'input' or source_area == 'LGNd':
+        source_field = input_field
+    else:
+        source_field = data.get_visual_field(source_area)
+
+    if target_area == 'LGNd':
+        target_field = input_field
+    else:
+        target_field = data.get_visual_field(target_area)
+
+    # indices in source frame of reference at image resolution
+    left = target_field[0] - source_field[0]
+    width = target_field[1] - target_field[0]
+    bottom = target_field[2] - source_field[2]
+    height = target_field[3] - target_field[2]
+
+    # indices in source frame of reference at source resolution
+    left, width, bottom, height = [int(np.floor(source_resolution * x)) for x in [left, width, bottom, height]]
+    return left, width, bottom, height
+
+
+if __name__ == '__main__':
+    from cmouse.network import load_network_from_pickle
+    network = load_network_from_pickle('network_complete_updated_number(3,64,64).pkl')
+    mousenet = MouseNetCompletePool(network)
+    input = torch.zeros((10, 3, 100, 100)) # first dim batch size
+    mousenet.get_img_feature(input, ['VISp5', 'VISl5', 'VISrl5', 'VISli5', 'VISpl5', 'VISal5', 'VISpor5'])

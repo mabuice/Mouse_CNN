@@ -169,16 +169,27 @@ class Data:
         :param area: visual area name
         :return: [min_azimuth, max_azimuth, min_altitude, max_altitude]
         """
-        fields = { # TODO: these are approximate numbers
+        # TODO: these are approximate numbers
+        # TODO: changing these so they all overlap VISpor -- revisit this
+        fields = {
             'VISp': [0, 85, -25, 35],
             'VISrl': [7, 53, -23, 12],
-            'VISal': [17, 46, 0, 15],
-            'VISl': [3, 40, 2, 28],
-            'VISli': [28, 42, -4, 30],
-            'VISpl': [34, 85, 12, 32],
+            'VISal': [17, 46, -5, 15],
+            'VISl': [3, 46, -5, 28],
+            'VISli': [26, 46, -5, 30],
+            'VISpl': [26, 85, -5, 32], # note this doesn't overlap VISpor at all without modification
             'VISpor': [26, 46, -5, 4],
-            'VISam': [41, 60, -21, 5],
-            'VISpm': [37, 82, -10, 6]
+            'VISam': [26, 60, -21, 5],
+            'VISpm': [26, 82, -10, 6]
+            # 'VISp': [0, 85, -25, 35],
+            # 'VISrl': [7, 53, -23, 12],
+            # 'VISal': [17, 46, 0, 15],
+            # 'VISl': [3, 40, 2, 28],
+            # 'VISli': [28, 42, -4, 30],
+            # 'VISpl': [34, 85, 12, 32],
+            # 'VISpor': [26, 46, -5, 4],
+            # 'VISam': [41, 60, -21, 5],
+            # 'VISpm': [37, 82, -10, 6]
         }
 
         if area in fields:

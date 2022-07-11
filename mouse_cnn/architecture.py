@@ -1,5 +1,5 @@
 import numpy as np
-from config import EDGE_Z
+from example.config import EDGE_Z
 from mouse_cnn.data import Data
 from mouse_cnn.voxel import Target, get_surface_area_mm2
 

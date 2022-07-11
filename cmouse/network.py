@@ -3,7 +3,7 @@ import networkx as nx
 from anatomy import gen_anatomy
 import torch
 from torch import nn
-from config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, SUBFIELDS, get_out_sigma, get_resolution
+from example.config import INPUT_SIZE, EDGE_Z, INPUT_GSH, INPUT_GSW, SUBFIELDS, get_out_sigma, get_resolution
 import os
 import pickle
 import matplotlib.pyplot as plt

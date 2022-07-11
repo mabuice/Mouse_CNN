@@ -2,7 +2,10 @@ import os
 import argparse
 import os 
 
-INPUT_SIZE=(3,64,64)
+# INPUT_SIZE=(3,64,64)
+INPUT_SIZE=(3,100,100)
+INPUT_CORNER = (0, -50) # min azimuth, min elevation of input image
+
 NUM_CLASSES = 1000
 HIDDEN_LINEAR = 2048
 
@@ -14,7 +17,6 @@ INPUT_GSW = 4 #Gaussian width of input to LGNv
 OUTPUT_AREAS = ['VISp5', 'VISl5', 'VISrl5', 'VISli5', 'VISpl5', 'VISal5', 'VISpor5']
 
 SUBFIELDS = False # use area-specific visual subfields
-
 
 def get_out_sigma(source_area, source_depth, target_area, target_depth):
     source_resolution = get_resolution(source_area, source_depth)
@@ -28,7 +30,7 @@ def get_resolution(area, depth):
     :param depth: layer name
     :return: model resolution in pixels per degree visual angle
     """
-    if area == 'VISp' or area == 'LGNd':
+    if area == 'VISp' or area == 'LGNd' or area == 'input':
         return 1
     else:
         return 0.5
