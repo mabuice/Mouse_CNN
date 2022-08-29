@@ -202,11 +202,15 @@ class MouseNetCompletePool(nn.Module):
                             )
                     else:
                         calc_graph[area] = calc_graph[area] + self.Convs[layer_name](calc_graph[layer.source_name])
-                        calc_graph[area] = nn.ReLU(inplace=True)(
-                            self.BNs[area](
-                                calc_graph[area]
-                            )
-                        )
+                    
+            calc_graph2 = calc_graph.copy()
+            calc_graph[area] = nn.ReLU(inplace=True)(
+                self.BNs[area](
+                    calc_graph[area]
+                )
+            )
+            if calc_graph[area].sum() == 0:
+                pdb.set_trace()
         
         if len(area_list) == 1:
             if flatten:
